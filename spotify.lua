@@ -1,12 +1,15 @@
 local surface = require "gamesense/surface"
+local http = require "gamesense/http"
 local TitleFont = surface.create_font("GothamBookItalic", 26, 900, 0x010)
 local ArtistFont = surface.create_font("GothamBookItalic", 17, 600, 0x010)
 
 local database_read = database.read
 local database_write = database.write
+local package_searchpath = package.searchpath
 local ui_set_callback = ui.set_callback
 local ui_set_visible = ui.set_visible
 local ui_get = ui.get
+local ui_new_label = ui.new_label
 
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
 
@@ -20,7 +23,7 @@ CornerReady = false
 
 Cornereg = "NONE"
 
-AuthURL = "https://accounts.spotify.com/en/authorize?response_type=token&redirect_uri=https:%2F%2Fdeveloper.spotify.com%2Fcallback&client_id=774b29d4f13844c495f206cafdad9c86&scope=user-read-currently-playing%20user-read-playback-state%20user-read-playback-position%20user-modify-playback-state%20playlist-read-private%20user-read-private%20user-read-recently-played%20playlist-read-collaborative%20user-library-read%20user-top-read&state=cybpef"
+AuthURL = "https://developer.spotify.com/console/get-users-currently-playing-track/"
 
 
 if database_read("previous_posX") >= 1920 then
@@ -28,11 +31,26 @@ if database_read("previous_posX") >= 1920 then
     SpotifyIndicY = 1020
 end
 
+local function file_exists(filename)
+	return package_searchpath("", filename) == filename
+end
+
 local function Auth() 
-
-
-    Authed = true
-    ShowMenuElements()
+    KeyFile = file_exists("./csgo/", "spotify.txt")
+    if KeyFile then
+        Authed = true
+        ShowMenuElements()
+        ui_new_label("MISC", "Miscellaneous", "Connected to $")
+    else
+        local js = panorama.loadstring([[
+            return {
+              open_url: function(url){
+                SteamOverlayAPI.OpenURL(url)
+              }
+            }
+            ]])()
+            js.open_url(AuthURL) 
+    end
 end
 
 local elements = {
