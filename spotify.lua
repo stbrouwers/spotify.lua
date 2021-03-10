@@ -135,10 +135,23 @@ local elements = {
     ResetKey = ui_new_button("MISC", "Miscellaneous", "Reset", ResetAPI),
     Cornerswitch = ui_new_checkbox("MISC", "Miscellaneous", "Stick to corner"),
     CustomColors = ui_new_checkbox("MISC", "Miscellaneous", "Custom colors"),
+    ProgressGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient progress bar"),
+    LabelProgressGradient1 = ui_new_label("MISC", "Miscellaneous", "Progress gradient 1"),
+    ProgressGradient1 = ui_new_color_picker("MISC", "Miscellaneous", "Background colourpicker", 0, 255, 0, 255),
+    LabelProgressGradient2 = ui_new_label("MISC", "Miscellaneous", "Progress gradient 2"),
+    ProgressGradient2 = ui_new_color_picker("MISC", "Miscellaneous", "progressbar gradient 2", 0, 255, 0, 255),
     LabelGradientColour = ui_new_label("MISC", "Miscellaneous", "Progress bar color"),
     GradientColour = ui.new_color_picker("MISC", "Miscellaneous", "progress bar Colourpicker", 0, 255, 0, 255),
     LabelBackgroundColor = ui_new_label("MISC", "Miscellaneous", "Background color"),
     BackgroundColor = ui_new_color_picker("MISC", "Miscellaneous", "Background colourpicker", 25, 25, 25, 255),
+    LabelTextColorPrimary = ui_new_label("MISC", "Miscellaneous", "Primary text color"),
+    TextColorPrimary = ui_new_color_picker("MISC", "Miscellaneous", "Primary text clr", 255, 255, 255, 255),
+    LabelTextColorSecondary = ui_new_label("MISC", "Miscellaneous", "Secondary text color"),
+    TextColorSecondary = ui_new_color_picker("MISC", "Miscellaneous", "Secondary text clr", 159, 159, 159, 255),
+    LabelBackgroundColorGradient1 = ui_new_label("MISC", "Miscellaneous", "Gradient 1"),
+    BackgroundColorGradient1 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker1", 25, 25, 25, 50),
+    LabelBackgroundColorGradient2 = ui_new_label("MISC", "Miscellaneous", "Gradient 2"),
+    BackgroundColorGradient2 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker2", 25, 25, 25, 255)
 }
 
 
@@ -177,7 +190,7 @@ function ShowMenuElements()
     if ui_get(MainCheckbox) then
             ui_set_visible(elements.AuthButton, not Authed)
             ui_set_visible(elements.Cornerswitch, Authed and ui_get(elements.IndicType) == "Big")
-            ui_set_visible(elements.Connected, Authed)
+            ui_set_visible(elements.Connected, true)
             ui_set_visible(elements.ResetKey, ConnectionStatus == 401)
             ui_set_visible(elements.NowPlaying, Authed)
             ui_set_visible(elements.Artist, Authed)
@@ -188,10 +201,23 @@ function ShowMenuElements()
             ui_set_visible(elements.Connected, Authed)
             ui_set_visible(elements.DebugInfo, Authed and UserName == "stbrouwers" or UserName == "slxyx")
             ui_set_visible(elements.CustomColors, Authed)
-            ui_set_visible(elements.GradientColour, ui_get(elements.CustomColors))
-            ui_set_visible(elements.LabelGradientColour, ui_get(elements.CustomColors))
+            ui_set_visible(elements.ProgressGradientSwitch, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
+            ui_set_visible(elements.LabelProgressGradient1, ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.ProgressGradient1, ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.LabelProgressGradient2, ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.ProgressGradient2, ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.GradientColour, ui_get(elements.CustomColors) and not ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.LabelGradientColour, ui_get(elements.CustomColors) and not ui_get(elements.ProgressGradientSwitch))
             ui_set_visible(elements.BackgroundColor, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
             ui_set_visible(elements.LabelBackgroundColor, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
+            ui_set_visible(elements.LabelTextColorPrimary, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
+            ui_set_visible(elements.TextColorPrimary, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
+            ui_set_visible(elements.LabelTextColorSecondary, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
+            ui_set_visible(elements.TextColorSecondary, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
+            ui_set_visible(elements.BackgroundColorGradient1, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
+            ui_set_visible(elements.LabelBackgroundColorGradient1, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
+            ui_set_visible(elements.BackgroundColorGradient2, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
+            ui_set_visible(elements.LabelBackgroundColorGradient2, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
             ui_set_visible(elements.NowPlaying, ui_get(elements.DebugInfo))
             ui_set_visible(elements.Artist, ui_get(elements.DebugInfo))
             ui_set_visible(elements.SongDuration, ui_get(elements.DebugInfo))   
@@ -206,7 +232,20 @@ function ShowMenuElements()
         ui_set_visible(elements.SongDuration, false)
         ui_set_visible(elements.IndicType, false)
         ui_set_visible(elements.CustomColors, false)
+        ui_set_visible(elements.ProgressGradientSwitch, false)
+        ui_set_visible(elements.LabelProgressGradient1, false)
+        ui_set_visible(elements.ProgressGradient1, false)
+        ui_set_visible(elements.LabelProgressGradient2, false)
+        ui_set_visible(elements.ProgressGradient2, false)
         ui_set_visible(elements.GradientColour, false)
+        ui_set_visible(elements.BackgroundColorGradient1, false)
+        ui_set_visible(elements.LabelBackgroundColorGradient1, false)
+        ui_set_visible(elements.BackgroundColorGradient2, false)
+        ui_set_visible(elements.LabelBackgroundColorGradient2, false)
+        ui_set_visible(elements.LabelTextColorPrimary, false)
+        ui_set_visible(elements.TextColorPrimary, false)
+        ui_set_visible(elements.LabelTextColorSecondary, false)
+        ui_set_visible(elements.TextColorSecondary, false)
         ui_set_visible(elements.LabelGradientColour, false)
         ui_set_visible(elements.BackgroundColor, false)
         ui_set_visible(elements.LabelBackgroundColor, false)
@@ -334,17 +373,23 @@ function SetAutocorner()
         end
             CornerReady = true
     end
-end
+end 
         
         local function Autocorner() 
+            gr1, gg1, gb1, ga1 = ui.get(elements.BackgroundColorGradient1)
+            gr2, gg2, gb2, ga2 = ui.get(elements.BackgroundColorGradient2)
+            tr1, tg1, tb1, ta1 = ui.get(elements.TextColorPrimary)
+            tr2, tg2, tb2, ta2 = ui.get(elements.TextColorSecondary)
             if dragging == false and not ui_get(elements.Cornerswitch) then
-                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+22, 255, 255, 255, 255, TitleFont, SongName)
-                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+52, 159, 159, 159, 255, ArtistFont, ArtistName)
+                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
             end
         
             if dragging == true and not ui_get(elements.Cornerswitch) then
-                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+22, 255, 255, 255, 255, TitleFont, SongName)
-                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+52, 159, 159, 159, 255, ArtistFont, ArtistName)
+                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
             end
         
             if dragging == false and ui_get(elements.Cornerswitch) then
@@ -353,50 +398,57 @@ end
                     TL = function()
                         SpotifyIndicX = 0
                         SpotifyIndicY = 0
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, 255, 255, 255, 255, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, 159, 159, 159, 255, ArtistFont, ArtistName)
+                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                     end,
         
                     TR = function()
                         SpotifyIndicX = 1520
                         SpotifyIndicY = 0
-                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-titlex, SpotifyIndicY+22, 255, 255, 255, 255, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-artistx, SpotifyIndicY+52, 159, 159, 159, 255, ArtistFont, ArtistName)
+                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-titlex, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-artistx, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                     end,
         
                     BL = function()
                         SpotifyIndicX = 0
                         SpotifyIndicY = 980
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, 255, 255, 255, 255, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, 159, 159, 159, 255, ArtistFont, ArtistName)
+                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                     end,
         
                     BR = function()
                         SpotifyIndicX = 1520
                         SpotifyIndicY = 980
-                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-titlex-10, SpotifyIndicY+22, 255, 255, 255, 255, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-artistx-10, SpotifyIndicY+52, 159, 159, 159, 255, ArtistFont, ArtistName)
+                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-titlex-10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-artistx-10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                     end,
         
                     BM = function()
                         SpotifyIndicX = 760
                         SpotifyIndicY = 980
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, 255, 255, 255, 255, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, 159, 159, 159, 255, ArtistFont, ArtistName)
+                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                     end,
         
                     TM = function()
                         SpotifyIndicX = 760
                         SpotifyIndicY = 0
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, 255, 255, 255, 255, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, 159, 159, 159, 255, ArtistFont, ArtistName)
+                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                     end,
         
                     NONE = function()
                         SpotifyIndicX = SpotifyIndicX
                         SpotifyIndicY = SpotifyIndicY
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, 255, 255, 255, 255, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, 159, 159, 159, 255, ArtistFont, ArtistName)
+                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                     end
                 }
             end
@@ -405,6 +457,8 @@ end
         local function DrawNowPlaying()
             r, g, b, a = ui.get(elements.GradientColour)
             br, bg, bb, ba = ui.get(elements.BackgroundColor)
+            gr1, gg1, gb1, ga1 = ui.get(elements.ProgressGradient1)
+            gr2, gg2, gb2, ga2 = ui.get(elements.ProgressGradient2)
             if CurrentDataSpotify == nil then return end
             switch(ui_get(elements.IndicType)) {
 
@@ -412,9 +466,12 @@ end
 
             SpotifyScaleX = 400
             SpotifyScaleY = 100
-            
             surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, SpotifyScaleX, SpotifyScaleY, br, bg, bb, ba)
+            if not ui_get(elements.ProgressGradientSwitch) then
             surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY+90, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*400, 10, r, g, b, a)
+            else
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY+90, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*400, 10, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+            end
             end,
 
             Simplistic = function()
