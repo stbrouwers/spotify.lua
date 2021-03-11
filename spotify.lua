@@ -57,9 +57,12 @@ SongLength = "-"
 Cornereg = "NONE"
 AuthURL = "https://developer.spotify.com/console/get-users-currently-playing-track/"
 
-if database_read("previous_posX") >= 1920 then
-    SpotifyIndicX = 0
-    SpotifyIndicY = 1020
+if database_read("previous_posX") == nil then return
+else
+    if database_read("previous_posX") >= 1920 then
+        SpotifyIndicX = 0
+        SpotifyIndicY = 1020
+    end
 end
 
 local txt_exists = function(name)
