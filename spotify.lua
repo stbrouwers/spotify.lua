@@ -314,18 +314,23 @@ local function Dragging()
     rawmouseposY = mousepos[2]
     local LClick = client.key_state(0x01)
 
-    if ui.get(elements.ArtButton) then limitval = SpotifyScaleY-1; indicxcomp = SpotifyScaleY+0.1 else limitval = 0; indicxcomp = -0.1 end
-
     if dragging and not LClick then
         dragging = false
     end
 
     if dragging and LClick then
-
-        if SpotifyIndicX <= -0.1 then
-            SpotifyIndicX = limitval
-        elseif SpotifyIndicX + adaptivesize >= sx+0.1 then
+        if SpotifyIndicX <= -0.1 and not ui_get(elements.ArtButton)  then
+            SpotifyIndicX = 0
+        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and not ui_get(elements.ArtButton) then
             SpotifyIndicX = sx - adaptivesize
+        elseif SpotifyIndicX - ArtScaleX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" then
+            SpotifyIndicX = ArtScaleX
+        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" then
+            SpotifyIndicX = sx - adaptivesize    
+        elseif SpotifyIndicX + adaptivesize + ArtScaleX >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" then
+            SpotifyIndicX = sx - adaptivesize - ArtScaleX
+        elseif SpotifyIndicX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" then
+            SpotifyIndicX = 0
         else
             SpotifyIndicX = rawmouseposX - xdrag
         end
@@ -363,10 +368,19 @@ local function AdjustSize()
         adaptivesize = sx/4.8
     end
 
-    if SpotifyIndicX <= indicxcomp then
-        SpotifyIndicX = limitval
-    elseif SpotifyIndicX + adaptivesize >= sx+0.1 then
+    if SpotifyIndicX <= -0.1 and not ui_get(elements.ArtButton)  then
+        SpotifyIndicX = 0
+    elseif SpotifyIndicX + adaptivesize >= sx+0.1 and not ui_get(elements.ArtButton) then
         SpotifyIndicX = sx - adaptivesize
+    elseif SpotifyIndicX - ArtScaleX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" then
+        SpotifyIndicX = ArtScaleX
+    elseif SpotifyIndicX + adaptivesize >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" then
+        SpotifyIndicX = sx - adaptivesize    
+    elseif SpotifyIndicX + adaptivesize + ArtScaleX >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" then
+        SpotifyIndicX = sx - adaptivesize - ArtScaleX
+    elseif SpotifyIndicX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" then
+        SpotifyIndicX = 0
+    else
     end
 
     if SpotifyIndicY <= -0.01 then
