@@ -18,7 +18,7 @@ local ui_new_checkbox = ui.new_checkbox
 local ui_new_combobox = ui.new_combobox
 local ui_new_slider = ui.new_slider
 local ui_new_color_picker = ui.new_color_picker
-local sx, xy = client.screen_size()
+local sx, sy = client.screen_size()
 
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
 
@@ -44,8 +44,8 @@ Authed = false
 CornerReady = false
 limitval = 0
 indicxcomp = -0.1
-SpotifyScaleX = 400
-SpotifyScaleY = 100
+SpotifyScaleX = sx/4.8
+SpotifyScaleY = sy/10.8
 UpdateCount = 0
 
 
@@ -308,16 +308,16 @@ local function Dragging()
 
         if SpotifyIndicX <= -0.1 then
             SpotifyIndicX = limitval
-        elseif SpotifyIndicX + SpotifyScaleX >= 1920.1 then
-            SpotifyIndicX = 1920 - SpotifyScaleX
+        elseif SpotifyIndicX + SpotifyScaleX >= sx+0.1 then
+            SpotifyIndicX = sx - SpotifyScaleX
         else
             SpotifyIndicX = rawmouseposX - xdrag
         end
 
         if SpotifyIndicY <= -0.1 then
             SpotifyIndicY = 0
-        elseif SpotifyIndicY + SpotifyScaleY >= 1080.1 then
-            SpotifyIndicY = 1080 - SpotifyScaleY
+        elseif SpotifyIndicY + SpotifyScaleY >= sy+0.1 then
+            SpotifyIndicY = sy - SpotifyScaleY
         else    
             SpotifyIndicY = rawmouseposY - ydrag
         end
@@ -336,14 +336,14 @@ local function AdjustSize()
 
     if SpotifyIndicX <= indicxcomp then
         SpotifyIndicX = limitval
-    elseif SpotifyIndicX + SpotifyScaleX >= 1920.1 then
-        SpotifyIndicX = 1920 - SpotifyScaleX
+    elseif SpotifyIndicX + SpotifyScaleX >= sx+0.1 then
+        SpotifyIndicX = sx - SpotifyScaleX
     end
 
     if SpotifyIndicY <= -0.01 then
         SpotifyIndicY = 0
-    elseif SpotifyIndicY + SpotifyScaleY >= 1080.1 then
-        SpotifyIndicY = 1080 - SpotifyScaleY
+    elseif SpotifyIndicY + SpotifyScaleY >= sy+0.1 then
+        SpotifyIndicY = sy - SpotifyScaleY
     end
 
     titlex, titley = surface.get_text_size(TitleFont, SongName)+50
@@ -355,8 +355,8 @@ local function AdjustSize()
         adaptivesize = artistx
     end
 
-    if adaptivesize <= 400 then
-        adaptivesize = 400
+    if adaptivesize <= sx/4.8 then
+        adaptivesize = sx/4.8
     end
     
 end
@@ -410,15 +410,15 @@ local function Autocorner()
     tr2, tg2, tb2, ta2 = ui.get(elements.TextColorSecondary)
 
     if dragging == false and not ui_get(elements.Cornerswitch) then
-        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-        surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-        surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, (SpotifyScaleY/20*19), gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+        surface.draw_text(SpotifyIndicX+(SpotifyScaleY/10), SpotifyIndicY+(SpotifyScaleY/100*22), tr1, tg1, tb1, ta1, TitleFont, SongName)
+        surface.draw_text(SpotifyIndicX+(SpotifyScaleY/10), SpotifyIndicY+(SpotifyScaleY/100*52), tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
     end
         
     if dragging == true and not ui_get(elements.Cornerswitch) then
-        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-        surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-        surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, (SpotifyScaleY/20*19), gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+        surface.draw_text(SpotifyIndicX+(SpotifyScaleY/10), SpotifyIndicY+(SpotifyScaleY/100*22), tr1, tg1, tb1, ta1, TitleFont, SongName)
+        surface.draw_text(SpotifyIndicX+(SpotifyScaleY/10), SpotifyIndicY+(SpotifyScaleY/100*52), tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
     end
         
     if dragging == false and ui_get(elements.Cornerswitch) then
@@ -494,14 +494,14 @@ local function DrawNowPlaying()
     switch(ui_get(elements.IndicType)) {
 
         Spotify = function()
-            SpotifyScaleX = 400
-            SpotifyScaleY = 100
+            --SpotifyScaleX = 400
+            --SpotifyScaleY = 100
             surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba)
-            if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX-100, SpotifyIndicY, 100, 100) else return end
+            if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX-SpotifyScaleY, SpotifyIndicY, SpotifyScaleY, SpotifyScaleY) else return end
             if not ui_get(elements.ProgressGradientSwitch) then
-                surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY+95, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, 5, r, g, b, a)
+                surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/20*19), CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, 5, r, g, b, a)
             else
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY+95, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, 5, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/20*19), CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, 5, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
             end
         end,
 
