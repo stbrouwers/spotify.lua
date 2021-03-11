@@ -135,7 +135,7 @@ end
 local elements = {
     AuthButton = ui_new_button("MISC", "Miscellaneous", "Authorize", Auth),
     Connected = ui_new_label("MISC", "Miscellaneous", AuthStatus),
-    IndicType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Big", "Simplistic"),
+    IndicType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Spotify", "Minimal"),
     DebugInfo = ui_new_checkbox("MISC", "Miscellaneous", "Debug Info"),
     NowPlaying = ui_new_label("MISC", "Miscellaneous", "Now playing:" .. SongName),
     Artist = ui_new_label("MISC", "Miscellaneous", "By:" .. ArtistName),
