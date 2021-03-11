@@ -316,8 +316,6 @@ local function Dragging()
     end
 end
 
-
-
 local function AdjustSize() 
     if not Authed then return end
 
@@ -335,14 +333,15 @@ local function AdjustSize()
 
     titlex, titley = surface.get_text_size(TitleFont, SongName)+50
     artistx, artisty = surface.get_text_size(ArtistFont, ArtistName)+50
+
     if titlex > artistx then
-        textsizeing = titlex
+        adaptivesize = titlex
     else
-        textsizeing = artistx
+        adaptivesize = artistx
     end
 
-    if textsizeing <= SpotifyIndicX then
-        textsizeing = SpotifyIndicX
+    if adaptivesize <= 400 then
+        adaptivesize = 400
     end
     
 end
@@ -350,188 +349,201 @@ end
 function SetAutocorner()
     if dragging == true and ui_get(elements.Cornerswitch) then
         if rawmouseposX <= 760 and rawmouseposY <= 540 then
-            surface.draw_filled_rect(0, 0, 400, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(0, 0, 400, 100, 40, 40, 255, 190)
+            surface.draw_filled_rect(0, 0, adaptivesize, 100, 20, 146, 255, 30)
+            surface.draw_outlined_rect(0, 0, adaptivesize, 100, 40, 40, 255, 190)
                     
             Cornereg = "TL"
         end
         
         if rawmouseposX >= 1160 and rawmouseposY <= 540 then
-            surface.draw_filled_rect(1520, 0, 400, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(1520, 0, 400, 100, 40, 40, 255, 190)
+            surface.draw_filled_rect(1520, 0, adaptivesize, 100, 20, 146, 255, 30)
+            surface.draw_outlined_rect(1520, 0, adaptivesize, 100, 40, 40, 255, 190)
             Cornereg = "TR"
         end
         
         if rawmouseposX <= 760 and rawmouseposY >= 540 then
-            surface.draw_filled_rect(0, 980, 400, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(0, 980, 400, 100, 40, 40, 255, 190)
+            surface.draw_filled_rect(0, 980, adaptivesize, 100, 20, 146, 255, 30)
+            surface.draw_outlined_rect(0, 980, adaptivesize, 100, 40, 40, 255, 190)
             Cornereg = "BL"
         end
         
         if rawmouseposX >= 1160 and rawmouseposY >= 540 then
-            surface.draw_filled_rect(1520, 980, 400, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(1520, 980, 400, 100, 40, 40, 255, 190)
+            surface.draw_filled_rect(1520, 980, adaptivesize, 100, 20, 146, 255, 30)
+            surface.draw_outlined_rect(1520, 980, adaptivesize, 100, 40, 40, 255, 190)
             Cornereg = "BR"
         end
         
         if rawmouseposX >= 760 and rawmouseposX <= 1160 and rawmouseposY >= 540 then
-            surface.draw_filled_rect(760, 980, 400, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(760, 980, 400, 100, 40, 40, 255, 190)
+            surface.draw_filled_rect(760, 980, adaptivesize, 100, 20, 146, 255, 30)
+            surface.draw_outlined_rect(760, 980, adaptivesize, 100, 40, 40, 255, 190)
             Cornereg = "BM"
         end
         
         if rawmouseposX >= 760 and rawmouseposX <= 1160 and rawmouseposY <= 540 then
-            surface.draw_filled_rect(760, 0, 400, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(760, 0, 400, 100, 40, 40, 255, 190)
+            surface.draw_filled_rect(760, 0, adaptivesize, 100, 20, 146, 255, 30)
+            surface.draw_outlined_rect(760, 0, adaptivesize, 100, 40, 40, 255, 190)
             Cornereg = "TM"
         end
             CornerReady = true
     end
 end 
         
-        local function Autocorner() 
-            gr1, gg1, gb1, ga1 = ui.get(elements.BackgroundColorGradient1)
-            gr2, gg2, gb2, ga2 = ui.get(elements.BackgroundColorGradient2)
-            tr1, tg1, tb1, ta1 = ui.get(elements.TextColorPrimary)
-            tr2, tg2, tb2, ta2 = ui.get(elements.TextColorSecondary)
-            if dragging == false and not ui_get(elements.Cornerswitch) then
-                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-            end
-        
-            if dragging == true and not ui_get(elements.Cornerswitch) then
-                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-            end
-        
-            if dragging == false and ui_get(elements.Cornerswitch) then
-                switch(Cornereg) {
-        
-                    TL = function()
-                        SpotifyIndicX = 0
-                        SpotifyIndicY = 0
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-                    end,
-        
-                    TR = function()
-                        SpotifyIndicX = 1520
-                        SpotifyIndicY = 0
-                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-titlex, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-artistx, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-                    end,
-        
-                    BL = function()
-                        SpotifyIndicX = 0
-                        SpotifyIndicY = 980
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-                    end,
-        
-                    BR = function()
-                        SpotifyIndicX = 1520
-                        SpotifyIndicY = 980
-                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-titlex-10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+SpotifyScaleX-artistx-10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-                    end,
-        
-                    BM = function()
-                        SpotifyIndicX = 760
-                        SpotifyIndicY = 980
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-                    end,
-        
-                    TM = function()
-                        SpotifyIndicX = 760
-                        SpotifyIndicY = 0
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-                    end,
-        
-                    NONE = function()
-                        SpotifyIndicX = SpotifyIndicX
-                        SpotifyIndicY = SpotifyIndicY
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, 400, 90, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-                    end
-                }
-            end
-        end
-        
-        local function DrawNowPlaying()
-            r, g, b, a = ui.get(elements.GradientColour)
-            br, bg, bb, ba = ui.get(elements.BackgroundColor)
-            gr1, gg1, gb1, ga1 = ui.get(elements.ProgressGradient1)
-            gr2, gg2, gb2, ga2 = ui.get(elements.ProgressGradient2)
-            if CurrentDataSpotify == nil then return end
-            switch(ui_get(elements.IndicType)) {
+local function Autocorner() 
+    gr1, gg1, gb1, ga1 = ui.get(elements.BackgroundColorGradient1)
+    gr2, gg2, gb2, ga2 = ui.get(elements.BackgroundColorGradient2)
+    tr1, tg1, tb1, ta1 = ui.get(elements.TextColorPrimary)
+    tr2, tg2, tb2, ta2 = ui.get(elements.TextColorSecondary)
 
-            Big = function()
-
-            SpotifyScaleX = 400
-            SpotifyScaleY = 100
-            surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, SpotifyScaleX, SpotifyScaleY, br, bg, bb, ba)
-            if not ui_get(elements.ProgressGradientSwitch) then
-            surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY+90, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*400, 10, r, g, b, a)
-            else
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY+90, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*400, 10, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-            end
+    if dragging == false and not ui_get(elements.Cornerswitch) then
+        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+        surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+        surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+    end
+        
+    if dragging == true and not ui_get(elements.Cornerswitch) then
+        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+        surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+        surface.draw_text(SpotifyIndicX+20, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+    end
+        
+    if dragging == false and ui_get(elements.Cornerswitch) then
+        switch(Cornereg) {
+        
+            TL = function()
+                SpotifyIndicX = 0
+                SpotifyIndicY = 0
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
             end,
-
-            Simplistic = function()
-                
-                SpotifyScaleX = 150
-                SpotifyScaleY = 30
-                songartist = renderer.measure_text("b", "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)+10
-                usrnm = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
-                if CurrentDataSpotify.is_playing and songartist > usrnm then
-                    textmeasurement = renderer.measure_text("b", "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)+10
-                elseif CurrentDataSpotify.is_playing and songartist < usrnm then
-                    textmeasurement = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
-                elseif not CurrentDataSpotify.is_playing then
-                    textmeasurement = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
-                end
-                renderer.gradient(SpotifyIndicX, SpotifyIndicY, textmeasurement, 32, 22, 22, 22, 255, 22, 22, 22, 10, true)
-                renderer.rectangle(SpotifyIndicX, SpotifyIndicY, 2, 32, r, g, b, a)
-                renderer.gradient(SpotifyIndicX, SpotifyIndicY, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*textmeasurement, 2, r, g, b, a, r, g, b, 0, true)
-                renderer.gradient(SpotifyIndicX, SpotifyIndicY+30, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*textmeasurement, 2, r, g, b, a, r, g, b, 0, true)
-                renderer.text(SpotifyIndicX+5, SpotifyIndicY+5, 255, 255, 255, 255, "b", 0, "Connected to: "..spotidata.display_name)
-                if CurrentDataSpotify.is_playing then
-                    renderer.text(SpotifyIndicX+5, SpotifyIndicY+15, 255, 255, 255, 255, "b", 0, "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)
-                else
-                    renderer.text(SpotifyIndicX+5, SpotifyIndicY+15, 255, 255, 255, 255, "b", 0, "Paused")
-                end
+        
+            TR = function()
+                SpotifyIndicX = sx-adaptivesize
+                SpotifyIndicY = 0
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+                surface.draw_text(sx-titlex+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(sx-artistx+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+            end,
+        
+            BL = function()
+                SpotifyIndicX = 0
+                SpotifyIndicY = 980
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+            end,
+        
+            BR = function()
+                SpotifyIndicX = sx-adaptivesize
+                SpotifyIndicY = 980
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+                surface.draw_text(sx-titlex+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(sx-artistx+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+            end,
+        
+            BM = function()
+                SpotifyIndicX = 760
+                SpotifyIndicY = 980
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+            end,
+        
+            TM = function()
+                SpotifyIndicX = 760
+                SpotifyIndicY = 0
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+            end,
+        
+            NONE = function()
+                SpotifyIndicX = SpotifyIndicX
+                SpotifyIndicY = SpotifyIndicY
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
             end
         }
     end
+end
+        
+local function DrawNowPlaying()
+    r, g, b, a = ui.get(elements.GradientColour)
+    br, bg, bb, ba = ui.get(elements.BackgroundColor)
+    gr1, gg1, gb1, ga1 = ui.get(elements.ProgressGradient1)
+    gr2, gg2, gb2, ga2 = ui.get(elements.ProgressGradient2)
+
+    if CurrentDataSpotify == nil then return end
+
+    switch(ui_get(elements.IndicType)) {
+
+        Spotify = function()
+            SpotifyScaleX = 400
+            SpotifyScaleY = 100
+            surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba)
+            if not ui_get(elements.ProgressGradientSwitch) then
+                surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY+95, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, 5, r, g, b, a)
+            else
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY+95, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, 5, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+            end
+        end,
+
+        Minimal = function()
+            SpotifyScaleX = 150
+            SpotifyScaleY = 30
+            songartist = renderer.measure_text("b", "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)+10
+            usrnm = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
+            if CurrentDataSpotify.is_playing and songartist > usrnm then
+                textmeasurement = renderer.measure_text("b", "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)+10
+            elseif CurrentDataSpotify.is_playing and songartist < usrnm then
+                textmeasurement = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
+            elseif not CurrentDataSpotify.is_playing then
+                textmeasurement = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
+            end
+            renderer.gradient(SpotifyIndicX, SpotifyIndicY, textmeasurement, 32, 22, 22, 22, 255, 22, 22, 22, 10, true)
+            renderer.rectangle(SpotifyIndicX, SpotifyIndicY, 2, 32, r, g, b, a)
+            renderer.gradient(SpotifyIndicX, SpotifyIndicY, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*textmeasurement, 2, r, g, b, a, r, g, b, 0, true)
+            renderer.gradient(SpotifyIndicX, SpotifyIndicY+30, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*textmeasurement, 2, r, g, b, a, r, g, b, 0, true)
+            renderer.text(SpotifyIndicX+5, SpotifyIndicY+5, 255, 255, 255, 255, "b", 0, "Connected to: "..spotidata.display_name)
+            if CurrentDataSpotify.is_playing then
+                renderer.text(SpotifyIndicX+5, SpotifyIndicY+15, 255, 255, 255, 255, "b", 0, "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)
+            else
+                renderer.text(SpotifyIndicX+5, SpotifyIndicY+15, 255, 255, 255, 255, "b", 0, "Paused")
+            end
+        end
+    }
+end
+
+local duration = 70
+local clantag_prev
+function SpotifyClantag()
+    if CurrentDataSpotify == nil then return end
+    clantags = {"Listening to:", CurrentDataSpotify.item.name, "by", CurrentDataSpotify.item.artists[1].name, ""}
+    local cur = math.floor(globals.tickcount() / duration) % #clantags
+    clantag = clantags[cur+1]
+    if clantag ~= clantag_prev then
+        clantag_prev = clantag
+        client.set_clan_tag(clantag)
+    end
+end
 
 function OnFrame()
     if not apikey then return end
-    if client.unix_time() > last_update + ui_get(elements.UpdateRate) then
+    if client.unix_time() > last_update + 1 then
         UpdateInf()
-        UpdateCount = UpdateCount + 1
-        ui_set(elements.SessionUpdates,"Total updates this session: " .. UpdateCount) 
         last_update = client.unix_time()
     end
     if ui_get(MainCheckbox) and Authed then
         AdjustSize()
         DrawNowPlaying()
-        if ui_get(elements.IndicType) == "Big" then Autocorner() end
+        if ui_get(elements.IndicType) == "Spotify" then Autocorner() end
         ShowMenuElements()
+        if ui_get(elements.Clantag) then SpotifyClantag() end
         
         
         if ui.is_menu_open() then
-            if ui_get(elements.IndicType) == "Big" then SetAutocorner() end
+            if ui_get(elements.IndicType) == "Spotify" then SetAutocorner() end
             Dragging()
             UpdateElements()
         end
@@ -543,7 +555,6 @@ function OnFrame()
         mouseposX = mousepos[1] - SpotifyIndicX
         mouseposY = mousepos[2] - SpotifyIndicY
 
-
     end
 end
 
@@ -552,8 +563,6 @@ ui_set_callback(MainCheckbox, ShowMenuElements)
 ui_set_callback(elements.Cornerswitch, ShowMenuElements)
 ui_set_callback(elements.DebugInfo, ShowMenuElements)
 ui_set_callback(elements.CustomColors, ShowMenuElements)
-
-
 
 client.set_event_callback("paint_ui", OnFrame)
 
