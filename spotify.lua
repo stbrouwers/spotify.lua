@@ -161,7 +161,8 @@ local elements = {
     LabelBackgroundColorGradient1 = ui_new_label("MISC", "Miscellaneous", "Gradient 1"),
     BackgroundColorGradient1 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker1", 25, 25, 25, 50),
     LabelBackgroundColorGradient2 = ui_new_label("MISC", "Miscellaneous", "Gradient 2"),
-    BackgroundColorGradient2 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker2", 25, 25, 25, 255)
+    BackgroundColorGradient2 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker2", 25, 25, 25, 255),
+    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Clantag"),
 }
 
 
@@ -213,6 +214,7 @@ function ShowMenuElements()
             ui_set_visible(elements.UpdateRate, Authed and ui_get(elements.DebugInfo))
             ui_set_visible(elements.SessionUpdates, Authed and ui_get(elements.DebugInfo))
             ui_set_visible(elements.CustomColors, Authed)
+            ui_set_visible(elements.Clantag, Authed)
             ui_set_visible(elements.ProgressGradientSwitch, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
             ui_set_visible(elements.LabelProgressGradient1, ui_get(elements.ProgressGradientSwitch))
             ui_set_visible(elements.ProgressGradient1, ui_get(elements.ProgressGradientSwitch))
@@ -263,6 +265,7 @@ function ShowMenuElements()
         ui_set_visible(elements.LabelGradientColour, false)
         ui_set_visible(elements.BackgroundColor, false)
         ui_set_visible(elements.LabelBackgroundColor, false)
+        ui_set_visible(elements.Clantag, false)
     end
 end
 
