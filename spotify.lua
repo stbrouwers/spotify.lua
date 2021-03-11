@@ -2,8 +2,6 @@ local surface = require "gamesense/surface"
 local http = require "gamesense/http"
 local images = require "gamesense/images"
 local ffi = require "ffi"
-local TitleFont = surface.create_font("GothamBookItalic", 26, 900, 0x010)
-local ArtistFont = surface.create_font("GothamBookItalic", 17, 600, 0x010)
 
 local database_read = database.read
 local database_write = database.write
@@ -19,6 +17,9 @@ local ui_new_combobox = ui.new_combobox
 local ui_new_slider = ui.new_slider
 local ui_new_color_picker = ui.new_color_picker
 local sx, sy = client.screen_size()
+
+local TitleFont = surface.create_font("GothamBookItalic", sy/41.54, 900, 0x010)
+local ArtistFont = surface.create_font("GothamBookItalic", sy/63.53, 600, 0x010)
 
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
 
@@ -55,7 +56,6 @@ SongName = "-"
 ArtistName = "-"
 SongProgression = "-"
 SongLength = "-"
-Cornereg = "NONE"
 AuthURL = "https://developer.spotify.com/console/get-users-currently-playing-track/"
 
 if database_read("previous_posX") == nil then
@@ -152,7 +152,9 @@ local elements = {
     UpdateRate = ui_new_slider("MISC", "Miscellaneous", "UpdateRate", 1, 5, 1, true, "s"),
     SessionUpdates = ui_new_label("MISC", "Miscellaneous", "Total updates this session: " .. UpdateCount),
     ResetKey = ui_new_button("MISC", "Miscellaneous", "Reset", ResetAPI),
-    Cornerswitch = ui_new_checkbox("MISC", "Miscellaneous", "Stick to corner"),
+    ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Cover Art"),
+    CustomLayoutSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Custom Layout"),
+    CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Left", "Right", "Top", "Behind"),
     CustomColors = ui_new_checkbox("MISC", "Miscellaneous", "Custom colors"),
     ProgressGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient progress bar"),
     LabelProgressGradient1 = ui_new_label("MISC", "Miscellaneous", "Progress gradient 1"),
@@ -172,8 +174,9 @@ local elements = {
     LabelBackgroundColorGradient2 = ui_new_label("MISC", "Miscellaneous", "Gradient 2"),
     BackgroundColorGradient2 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker2", 25, 25, 25, 255),
     Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Clantag"),
-    ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Show Art")
 }
+
+ui_set(elements.CustomLayoutType, "Left")
 
 local startpos = {
     DRegionx = 0, DRegiony = 0,
@@ -208,7 +211,9 @@ end
 function ShowMenuElements() 
     if ui_get(MainCheckbox) then
             ui_set_visible(elements.AuthButton, not Authed)
-            ui_set_visible(elements.Cornerswitch, Authed and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.ArtButton, Authed and ui_get(elements.IndicType) == "Spotify")   
+            ui_set_visible(elements.CustomLayoutSwitch, ui_get(elements.ArtButton))
+            ui_set_visible(elements.CustomLayoutType, ui_get(elements.CustomLayoutSwitch))
             ui_set_visible(elements.Connected, true)
             ui_set_visible(elements.ResetKey, ConnectionStatus == 401)
             ui_set_visible(elements.NowPlaying, Authed)
@@ -218,7 +223,7 @@ function ShowMenuElements()
             ui_set_visible(elements.GradientColour, Authed)
             ui_set_visible(elements.LabelGradientColour, Authed)
             ui_set_visible(elements.Connected, Authed)
-            ui_set_visible(elements.DebugInfo, Authed and UserName == "stbrouwers" or Authed and UserName == "slxyx")
+            ui_set_visible(elements.DebugInfo, Authed and UserName == "stbrouwers" or Authed and UserName == "slxyx" or Authed and UserName == "Encoded")
             ui_set_visible(elements.UpdateRate, Authed and ui_get(elements.DebugInfo))
             ui_set_visible(elements.SessionUpdates, Authed and ui_get(elements.DebugInfo))
             ui_set_visible(elements.CustomColors, Authed)
@@ -243,10 +248,11 @@ function ShowMenuElements()
             ui_set_visible(elements.NowPlaying, ui_get(elements.DebugInfo))
             ui_set_visible(elements.Artist, ui_get(elements.DebugInfo))
             ui_set_visible(elements.SongDuration, ui_get(elements.DebugInfo))
-            ui_set_visible(elements.ArtButton, Authed and ui_get(elements.IndicType) == "Spotify")   
     else
         ui_set_visible(elements.AuthButton, false)
-        ui_set_visible(elements.Cornerswitch, false)
+        ui_set_visible(elements.ArtButton, false)
+        ui_set_visible(elements.CustomLayoutSwitch, false)
+        ui_set_visible(elements.CustomLayoutType, false)
         ui_set_visible(elements.Connected, false)
         ui_set_visible(elements.ResetKey, false)
         ui_set_visible(elements.DebugInfo, false)
@@ -275,7 +281,6 @@ function ShowMenuElements()
         ui_set_visible(elements.BackgroundColour, false)
         ui_set_visible(elements.LabelBackgroundColor, false)
         ui_set_visible(elements.Clantag, false)
-        ui_set_visible(elements.ArtButton, false)
     end
 end
 
@@ -298,7 +303,7 @@ local function Dragging()
     rawmouseposY = mousepos[2]
     local LClick = client.key_state(0x01)
 
-    if ui.get(elements.ArtButton) then limitval = SpotifyScaleY; indicxcomp = SpotifyScaleY+0.1 else limitval = 0; indicxcomp = -0.1 end
+    if ui.get(elements.ArtButton) then limitval = SpotifyScaleY-1; indicxcomp = SpotifyScaleY+0.1 else limitval = 0; indicxcomp = -0.1 end
 
     if dragging and not LClick then
         dragging = false
@@ -324,7 +329,7 @@ local function Dragging()
 
     end
 
-    if intersect(SpotifyIndicX - startpos.DRegionx, SpotifyIndicY - startpos.DRegiony, adaptivesize, SpotifyScaleY, false) and LClick then 
+    if intersect(SpotifyIndicX-SpotifyScaleY+1 - startpos.DRegionx, SpotifyIndicY - startpos.DRegiony, adaptivesize+SpotifyScaleY, SpotifyScaleY, false) and LClick then 
         dragging = true
         xdrag = rawmouseposX - SpotifyIndicX
         ydrag = rawmouseposY - SpotifyIndicY
@@ -361,125 +366,43 @@ local function AdjustSize()
 
     
 end
-
-function SetAutocorner()
-    if dragging == true and ui_get(elements.Cornerswitch) then
-        if rawmouseposX <= 760 and rawmouseposY <= 540 then
-            surface.draw_filled_rect(0+limitval, 0, adaptivesize, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(0+limitval, 0, adaptivesize, 100, 40, 40, 255, 190)
-                    
-            Cornereg = "TL"
-        end
         
-        if rawmouseposX >= 1160 and rawmouseposY <= 540 then
-            surface.draw_filled_rect(1520, 0, adaptivesize, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(1520, 0, adaptivesize, 100, 40, 40, 255, 190)
-            Cornereg = "TR"
-        end
-        
-        if rawmouseposX <= 760 and rawmouseposY >= 540 then
-            surface.draw_filled_rect(0+limitval, 980, adaptivesize, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(0+limitval, 980, adaptivesize, 100, 40, 40, 255, 190)
-            Cornereg = "BL"
-        end
-        
-        if rawmouseposX >= 1160 and rawmouseposY >= 540 then
-            surface.draw_filled_rect(1520, 980, adaptivesize, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(1520, 980, adaptivesize, 100, 40, 40, 255, 190)
-            Cornereg = "BR"
-        end
-        
-        if rawmouseposX >= 760 and rawmouseposX <= 1160 and rawmouseposY >= 540 then
-            surface.draw_filled_rect(760-limitval, 980, adaptivesize, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(760-limitval, 980, adaptivesize, 100, 40, 40, 255, 190)
-            Cornereg = "BM"
-        end
-        
-        if rawmouseposX >= 760 and rawmouseposX <= 1160 and rawmouseposY <= 540 then
-            surface.draw_filled_rect(760-limitval, 0, adaptivesize, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(760-limitval, 0, adaptivesize, 100, 40, 40, 255, 190)
-            Cornereg = "TM"
-        end
-            CornerReady = true
-    end
-end 
-        
-local function Autocorner() 
+local function CustomLayout() 
     gr1, gg1, gb1, ga1 = ui.get(elements.BackgroundColorGradient1)
     gr2, gg2, gb2, ga2 = ui.get(elements.BackgroundColorGradient2)
     tr1, tg1, tb1, ta1 = ui.get(elements.TextColorPrimary)
     tr2, tg2, tb2, ta2 = ui.get(elements.TextColorSecondary)
 
-    if dragging == false and not ui_get(elements.Cornerswitch) then
-        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, (SpotifyScaleY/20*19), gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-        surface.draw_text(SpotifyIndicX+(SpotifyScaleY/10), SpotifyIndicY+(SpotifyScaleY/100*22), tr1, tg1, tb1, ta1, TitleFont, SongName)
-        surface.draw_text(SpotifyIndicX+(SpotifyScaleY/10), SpotifyIndicY+(SpotifyScaleY/100*52), tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-    end
+    surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, (SpotifyScaleY/20*19), gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+    surface.draw_text(SpotifyIndicX+(SpotifyScaleY/10), SpotifyIndicY+(SpotifyScaleY/100*22), tr1, tg1, tb1, ta1, TitleFont, SongName)
+    surface.draw_text(SpotifyIndicX+(SpotifyScaleY/10), SpotifyIndicY+(SpotifyScaleY/100*52), tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
         
-    if dragging == true and not ui_get(elements.Cornerswitch) then
-        surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, (SpotifyScaleY/20*19), gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-        surface.draw_text(SpotifyIndicX+(SpotifyScaleY/10), SpotifyIndicY+(SpotifyScaleY/100*22), tr1, tg1, tb1, ta1, TitleFont, SongName)
-        surface.draw_text(SpotifyIndicX+(SpotifyScaleY/10), SpotifyIndicY+(SpotifyScaleY/100*52), tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-    end
+    if dragging == false and ui_get(elements.CustomLayoutSwitch) then
+        switch(ui_get(elements.CustomLayoutType)) {
         
-    if dragging == false and ui_get(elements.Cornerswitch) then
-        switch(Cornereg) {
-        
-            TL = function()
-                SpotifyIndicX = 0+limitval
-                SpotifyIndicY = 0
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+            Left = function()
+                if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX-SpotifyScaleY+1, SpotifyIndicY, SpotifyScaleY, SpotifyScaleY) else end
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
             end,
-        
-            TR = function()
-                SpotifyIndicX = sx-adaptivesize
-                SpotifyIndicY = 0
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-                surface.draw_text(sx-titlex+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                surface.draw_text(sx-artistx+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-            end,
-        
-            BL = function()
-                SpotifyIndicX = 0+limitval
-                SpotifyIndicY = 980
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+
+            Right = function()
+                if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX, SpotifyIndicY, SpotifyScaleY, SpotifyScaleY) else end
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
             end,
-        
-            BR = function()
-                SpotifyIndicX = sx-adaptivesize
-                SpotifyIndicY = 980
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-                surface.draw_text(sx-titlex+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                surface.draw_text(sx-artistx+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-            end,
-        
-            BM = function()
-                SpotifyIndicX = 760-limitval
-                SpotifyIndicY = 980
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+            
+            Top = function()
+                if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX-SpotifyScaleY+1, SpotifyIndicY, SpotifyScaleY, SpotifyScaleY) else end
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
             end,
-        
-            TM = function()
-                SpotifyIndicX = 760-limitval
-                SpotifyIndicY = 0
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+
+            Behind = function()
+                if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX-SpotifyScaleY+1, SpotifyIndicY, SpotifyScaleY, SpotifyScaleY) else end
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
             end,
-        
-            NONE = function()
-                SpotifyIndicX = SpotifyIndicX
-                SpotifyIndicY = SpotifyIndicY
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
-                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-            end
         }
     end
 end
@@ -495,14 +418,12 @@ local function DrawNowPlaying()
     switch(ui_get(elements.IndicType)) {
 
         Spotify = function()
-            --SpotifyScaleX = 400
-            --SpotifyScaleY = 100
             surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba)
-            if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX-SpotifyScaleY+1, SpotifyIndicY, SpotifyScaleY, SpotifyScaleY) else return end
+            surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
             if not ui_get(elements.ProgressGradientSwitch) then
-                surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/20*19)-1, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, (SpotifyScaleY/20*1), r, g, b, a)
+                surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/20*19), CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, (SpotifyScaleY/20*1), r, g, b, a)
             else
-                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/20*19)-1, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, (SpotifyScaleY/20*1), gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
+                surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/20*19), CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, (SpotifyScaleY/20*1), gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
             end
         end,
 
@@ -554,13 +475,12 @@ function OnFrame()
     if ui_get(MainCheckbox) and Authed then
         AdjustSize()
         DrawNowPlaying()
-        if ui_get(elements.IndicType) == "Spotify" then Autocorner() end
+        if ui_get(elements.IndicType) == "Spotify" then CustomLayout() end
         ShowMenuElements()
         if ui_get(elements.Clantag) then SpotifyClantag() end
         
         
         if ui.is_menu_open() then
-            if ui_get(elements.IndicType) == "Spotify" then SetAutocorner() end
             Dragging()
             UpdateElements()
         end
@@ -577,7 +497,7 @@ end
 
 ShowMenuElements()
 ui_set_callback(MainCheckbox, ShowMenuElements)
-ui_set_callback(elements.Cornerswitch, ShowMenuElements)
+ui_set_callback(elements.CustomLayoutSwitch, ShowMenuElements)
 ui_set_callback(elements.DebugInfo, ShowMenuElements)
 ui_set_callback(elements.CustomColors, ShowMenuElements)
 
