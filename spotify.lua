@@ -57,7 +57,9 @@ SongLength = "-"
 Cornereg = "NONE"
 AuthURL = "https://developer.spotify.com/console/get-users-currently-playing-track/"
 
-if database_read("previous_posX") == nil then return
+if database_read("previous_posX") == nil then
+    database_write("previous_posX", SpotifyIndicX)
+    database_write("previous_posY", SpotifyIndicY)
 else
     if database_read("previous_posX") >= 1920 then
         SpotifyIndicX = 0
