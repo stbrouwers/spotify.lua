@@ -245,7 +245,7 @@ function ShowMenuElements()
             ui_set_visible(elements.NowPlaying, ui_get(elements.DebugInfo))
             ui_set_visible(elements.Artist, ui_get(elements.DebugInfo))
             ui_set_visible(elements.SongDuration, ui_get(elements.DebugInfo))
-            ui_set_visible(elements.ArtButton, Authed)   
+            ui_set_visible(elements.ArtButton, Authed and ui_get(elements.IndicType) == "Spotify")   
     else
         ui_set_visible(elements.AuthButton, false)
         ui_set_visible(elements.Cornerswitch, false)
