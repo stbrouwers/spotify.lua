@@ -162,7 +162,7 @@ local elements = {
     LabelGradientColour = ui_new_label("MISC", "Miscellaneous", "Progress bar color"),
     GradientColour = ui.new_color_picker("MISC", "Miscellaneous", "progress bar Colourpicker", 0, 255, 0, 255),
     LabelBackgroundColor = ui_new_label("MISC", "Miscellaneous", "Background color"),
-    BackgroundColor = ui_new_color_picker("MISC", "Miscellaneous", "Background colourpicker", 25, 25, 25, 255),
+    BackgroundColour = ui_new_color_picker("MISC", "Miscellaneous", "Background colourrpicker", 25, 25, 25, 255),
     LabelTextColorPrimary = ui_new_label("MISC", "Miscellaneous", "Primary text color"),
     TextColorPrimary = ui_new_color_picker("MISC", "Miscellaneous", "Primary text clr", 255, 255, 255, 255),
     LabelTextColorSecondary = ui_new_label("MISC", "Miscellaneous", "Secondary text color"),
@@ -174,8 +174,6 @@ local elements = {
     Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Clantag"),
     ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Show Art")
 }
-
-
 
 local startpos = {
     DRegionx = 0, DRegiony = 0,
@@ -232,7 +230,7 @@ function ShowMenuElements()
             ui_set_visible(elements.ProgressGradient2, Authed and ui_get(elements.ProgressGradientSwitch))
             ui_set_visible(elements.GradientColour, Authed and ui_get(elements.CustomColors) and not ui_get(elements.ProgressGradientSwitch))
             ui_set_visible(elements.LabelGradientColour, Authed and ui_get(elements.CustomColors) and not ui_get(elements.ProgressGradientSwitch))
-            ui_set_visible(elements.BackgroundColor, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.BackgroundColour, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
             ui_set_visible(elements.LabelBackgroundColor, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
             ui_set_visible(elements.LabelTextColorPrimary, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
             ui_set_visible(elements.TextColorPrimary, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
@@ -274,7 +272,7 @@ function ShowMenuElements()
         ui_set_visible(elements.LabelTextColorSecondary, false)
         ui_set_visible(elements.TextColorSecondary, false)
         ui_set_visible(elements.LabelGradientColour, false)
-        ui_set_visible(elements.BackgroundColor, false)
+        ui_set_visible(elements.BackgroundColour, false)
         ui_set_visible(elements.LabelBackgroundColor, false)
         ui_set_visible(elements.Clantag, false)
         ui_set_visible(elements.ArtButton, false)
@@ -485,7 +483,7 @@ end
         
 local function DrawNowPlaying()
     r, g, b, a = ui.get(elements.GradientColour)
-    br, bg, bb, ba = ui.get(elements.BackgroundColor)
+    br, bg, bb, ba = ui.get(elements.BackgroundColour)
     gr1, gg1, gb1, ga1 = ui.get(elements.ProgressGradient1)
     gr2, gg2, gb2, ga2 = ui.get(elements.ProgressGradient2)
 
