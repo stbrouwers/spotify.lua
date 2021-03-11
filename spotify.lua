@@ -1,5 +1,6 @@
 local surface = require "gamesense/surface"
 local http = require "gamesense/http"
+local images = require "gamesense/images"
 local ffi = require "ffi"
 
 local TitleFont = surface.create_font("GothamBookItalic", 26, 900, 0x010)
@@ -127,6 +128,14 @@ function UpdateInf()
             end
             SongLength = CurrentDataSpotify.item.duration_ms / 1000
             SongProgression = CurrentDataSpotify.progress_ms / 1000
+            ThumbnailUrl = CurrentDataSpotify.item.album.images[1].url
+            http.get(ThumbnailUrl, function(success, response)
+                if not success or response.status ~= 200 then
+                  return
+                end
+            Thumbnail = images.load_jpg(response.body)
+            client.log(Thumbnail)
+            end)
         end)
 end
 
@@ -163,6 +172,7 @@ local elements = {
     LabelBackgroundColorGradient2 = ui_new_label("MISC", "Miscellaneous", "Gradient 2"),
     BackgroundColorGradient2 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker2", 25, 25, 25, 255),
     Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Clantag"),
+    ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Show Art")
 }
 
 
@@ -215,26 +225,27 @@ function ShowMenuElements()
             ui_set_visible(elements.SessionUpdates, Authed and ui_get(elements.DebugInfo))
             ui_set_visible(elements.CustomColors, Authed)
             ui_set_visible(elements.Clantag, Authed)
-            ui_set_visible(elements.ProgressGradientSwitch, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
-            ui_set_visible(elements.LabelProgressGradient1, Authed and ui_get(elements.ProgressGradientSwitch))
-            ui_set_visible(elements.ProgressGradient1, Authed and ui_get(elements.ProgressGradientSwitch))
-            ui_set_visible(elements.LabelProgressGradient2, uAuthed and i_get(elements.ProgressGradientSwitch))
-            ui_set_visible(elements.ProgressGradient2, Authed and ui_get(elements.ProgressGradientSwitch))
-            ui_set_visible(elements.GradientColour, Authed and ui_get(elements.CustomColors) and not ui_get(elements.ProgressGradientSwitch))
-            ui_set_visible(elements.LabelGradientColour, Authed and ui_get(elements.CustomColors) and not ui_get(elements.ProgressGradientSwitch))
-            ui_set_visible(elements.BackgroundColor, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
-            ui_set_visible(elements.LabelBackgroundColor, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
-            ui_set_visible(elements.LabelTextColorPrimary, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
-            ui_set_visible(elements.TextColorPrimary, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
-            ui_set_visible(elements.LabelTextColorSecondary, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
-            ui_set_visible(elements.TextColorSecondary, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
-            ui_set_visible(elements.BackgroundColorGradient1, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
-            ui_set_visible(elements.LabelBackgroundColorGradient1, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
-            ui_set_visible(elements.BackgroundColorGradient2, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
-            ui_set_visible(elements.LabelBackgroundColorGradient2, Authed and ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
-            ui_set_visible(elements.NowPlaying, Authed and ui_get(elements.DebugInfo))
-            ui_set_visible(elements.Artist, Authed and ui_get(elements.DebugInfo))
-            ui_set_visible(elements.SongDuration, Authed and ui_get(elements.DebugInfo))   
+            ui_set_visible(elements.ProgressGradientSwitch, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
+            ui_set_visible(elements.LabelProgressGradient1, ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.ProgressGradient1, ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.LabelProgressGradient2, ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.ProgressGradient2, ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.GradientColour, ui_get(elements.CustomColors) and not ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.LabelGradientColour, ui_get(elements.CustomColors) and not ui_get(elements.ProgressGradientSwitch))
+            ui_set_visible(elements.BackgroundColor, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.LabelBackgroundColor, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.LabelTextColorPrimary, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.TextColorPrimary, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.LabelTextColorSecondary, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.TextColorSecondary, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.BackgroundColorGradient1, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.LabelBackgroundColorGradient1, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.BackgroundColorGradient2, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.LabelBackgroundColorGradient2, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Spotify")
+            ui_set_visible(elements.NowPlaying, ui_get(elements.DebugInfo))
+            ui_set_visible(elements.Artist, ui_get(elements.DebugInfo))
+            ui_set_visible(elements.SongDuration, ui_get(elements.DebugInfo))
+            ui_set_visible(elements.ArtButton, Authed)   
     else
         ui_set_visible(elements.AuthButton, false)
         ui_set_visible(elements.Cornerswitch, false)
@@ -266,6 +277,7 @@ function ShowMenuElements()
         ui_set_visible(elements.BackgroundColor, false)
         ui_set_visible(elements.LabelBackgroundColor, false)
         ui_set_visible(elements.Clantag, false)
+        ui_set_visible(elements.ArtButton, false)
     end
 end
 
@@ -485,6 +497,7 @@ local function DrawNowPlaying()
             SpotifyScaleX = 400
             SpotifyScaleY = 100
             surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba)
+            if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX-100, SpotifyIndicY, 100, 100) else return end
             if not ui_get(elements.ProgressGradientSwitch) then
                 surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY+95, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, 5, r, g, b, a)
             else
