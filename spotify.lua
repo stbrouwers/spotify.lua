@@ -315,7 +315,7 @@ local function Dragging()
         end
 
         if SpotifyIndicY <= -0.1 then
-            SpotifyIndicY = limitval
+            SpotifyIndicY = 0
         elseif SpotifyIndicY + SpotifyScaleY >= 1080.1 then
             SpotifyIndicY = 1080 - SpotifyScaleY
         else    
@@ -340,8 +340,8 @@ local function AdjustSize()
         SpotifyIndicX = 1920 - SpotifyScaleX
     end
 
-    if SpotifyIndicY <= indicxcomp then
-        SpotifyIndicY = limitval
+    if SpotifyIndicY <= -0.01 then
+        SpotifyIndicY = 0
     elseif SpotifyIndicY + SpotifyScaleY >= 1080.1 then
         SpotifyIndicY = 1080 - SpotifyScaleY
     end
