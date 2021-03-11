@@ -406,9 +406,9 @@ local function CustomLayout()
             end,
 
             Right = function()
-                if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX+ArtScaleX, SpotifyIndicY, ArtScaleX, ArtScaleY) else end
-                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX+SpotifyScaleX, SpotifyIndicY, ArtScaleX, ArtScaleY) else end
+                surface.draw_text(SpotifyIndicX + SpotifyScaleX - titlex + (SpotifyScaleY/100*40), SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX + SpotifyScaleX - artistx + (SpotifyScaleY/100*40), SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
             end,
             
             Top = function()
