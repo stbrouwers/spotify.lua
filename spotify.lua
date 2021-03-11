@@ -45,6 +45,8 @@ CornerReady = false
 
 SpotifyScaleX = 400
 SpotifyScaleY = 100
+UpdateCount = 0
+
 
 AuthStatus = "false"
 UserName = "-"
@@ -77,6 +79,7 @@ end
 
 function Auth() 
     apikey = CP()
+    if apikey == nil then GetToken() return end
         http.get("https://api.spotify.com/v1/me?&access_token=" .. apikey, function(success, response)
             ConnectionStatus = response.status
             if not success or response.status ~= 200 then
@@ -132,6 +135,8 @@ local elements = {
     NowPlaying = ui_new_label("MISC", "Miscellaneous", "Now playing:" .. SongName),
     Artist = ui_new_label("MISC", "Miscellaneous", "By:" .. ArtistName),
     SongDuration = ui_new_label("MISC", "Miscellaneous", SongProgression .. SongLength),
+    UpdateRate = ui_new_slider("MISC", "Miscellaneous", "UpdateRate", 1, 5, 1, true, "s"),
+    SessionUpdates = ui_new_label("MISC", "Miscellaneous", "Total updates this session: " .. UpdateCount),
     ResetKey = ui_new_button("MISC", "Miscellaneous", "Reset", ResetAPI),
     Cornerswitch = ui_new_checkbox("MISC", "Miscellaneous", "Stick to corner"),
     CustomColors = ui_new_checkbox("MISC", "Miscellaneous", "Custom colors"),
@@ -200,6 +205,8 @@ function ShowMenuElements()
             ui_set_visible(elements.LabelGradientColour, Authed)
             ui_set_visible(elements.Connected, Authed)
             ui_set_visible(elements.DebugInfo, Authed and UserName == "stbrouwers" or UserName == "slxyx")
+            ui_set_visible(elements.UpdateRate, Authed and ui_get(elements.DebugInfo))
+            ui_set_visible(elements.SessionUpdates, Authed and ui_get(elements.DebugInfo))
             ui_set_visible(elements.CustomColors, Authed)
             ui_set_visible(elements.ProgressGradientSwitch, ui_get(elements.CustomColors) and ui_get(elements.IndicType) == "Big")
             ui_set_visible(elements.LabelProgressGradient1, ui_get(elements.ProgressGradientSwitch))
@@ -229,6 +236,8 @@ function ShowMenuElements()
         ui_set_visible(elements.DebugInfo, false)
         ui_set_visible(elements.NowPlaying, false)
         ui_set_visible(elements.Artist, false)
+        ui_set_visible(elements.UpdateRate, false)
+        ui_set_visible(elements.SessionUpdates, false)
         ui_set_visible(elements.SongDuration, false)
         ui_set_visible(elements.IndicType, false)
         ui_set_visible(elements.CustomColors, false)
@@ -503,8 +512,10 @@ end
 
 function OnFrame()
     if not apikey then return end
-    if client.unix_time() > last_update + 1 then
+    if client.unix_time() > last_update + ui_get(elements.UpdateRate) then
         UpdateInf()
+        UpdateCount = UpdateCount + 1
+        ui_set(elements.SessionUpdates,"Total updates this session: " .. UpdateCount) 
         last_update = client.unix_time()
     end
     if ui_get(MainCheckbox) and Authed then
