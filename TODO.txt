@@ -6,13 +6,7 @@
 >Adding more customization features
   -CoverArt positioning
   -Container Sizing
->Add features to cornersnapping
-  -Remove/Wrap radar (Wrap progressbar around radar) [TL]
-  -Display GameStats (score and players alive per team) [TM]
-  -Display GameStats (Health and Armor) [BL]
-  -Display GameStats (Ammo, SelectedWeapon, Utility and Secondary weapon) [BR]
-  -Display GameStats (Replace Player with KillMessage on LocalPlayer gets kill) [TR]
-  
+
   
   
   *Future Plans* 
