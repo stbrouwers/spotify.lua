@@ -2,7 +2,6 @@ local surface = require "gamesense/surface"
 local http = require "gamesense/http"
 local images = require "gamesense/images"
 local ffi = require "ffi"
-
 local TitleFont = surface.create_font("GothamBookItalic", 26, 900, 0x010)
 local ArtistFont = surface.create_font("GothamBookItalic", 17, 600, 0x010)
 
@@ -43,7 +42,8 @@ end
 dragging = false
 Authed = false
 CornerReady = false
-
+limitval = 0
+indicxcomp = -0.1
 SpotifyScaleX = 400
 SpotifyScaleY = 100
 UpdateCount = 0
@@ -218,7 +218,7 @@ function ShowMenuElements()
             ui_set_visible(elements.GradientColour, Authed)
             ui_set_visible(elements.LabelGradientColour, Authed)
             ui_set_visible(elements.Connected, Authed)
-            ui_set_visible(elements.DebugInfo, Authed and UserName == "stbrouwers" or UserName == "slxyx")
+            ui_set_visible(elements.DebugInfo, Authed and UserName == "stbrouwers" or Authed and UserName == "slxyx")
             ui_set_visible(elements.UpdateRate, Authed and ui_get(elements.DebugInfo))
             ui_set_visible(elements.SessionUpdates, Authed and ui_get(elements.DebugInfo))
             ui_set_visible(elements.CustomColors, Authed)
@@ -298,6 +298,8 @@ local function Dragging()
     rawmouseposY = mousepos[2]
     local LClick = client.key_state(0x01)
 
+    if ui.get(elements.ArtButton) then limitval = 100; indicxcomp = 100.1 else limitval = 0; indicxcomp = -0.1 end
+
     if dragging and not LClick then
         dragging = false
     end
@@ -305,7 +307,7 @@ local function Dragging()
     if dragging and LClick then
 
         if SpotifyIndicX <= -0.1 then
-            SpotifyIndicX = 0
+            SpotifyIndicX = limitval
         elseif SpotifyIndicX + SpotifyScaleX >= 1920.1 then
             SpotifyIndicX = 1920 - SpotifyScaleX
         else
@@ -313,7 +315,7 @@ local function Dragging()
         end
 
         if SpotifyIndicY <= -0.1 then
-            SpotifyIndicY = 0
+            SpotifyIndicY = limitval
         elseif SpotifyIndicY + SpotifyScaleY >= 1080.1 then
             SpotifyIndicY = 1080 - SpotifyScaleY
         else    
@@ -332,14 +334,14 @@ end
 local function AdjustSize() 
     if not Authed then return end
 
-    if SpotifyIndicX <= -0.1 then
-        SpotifyIndicX = 0
+    if SpotifyIndicX <= indicxcomp then
+        SpotifyIndicX = limitval
     elseif SpotifyIndicX + SpotifyScaleX >= 1920.1 then
         SpotifyIndicX = 1920 - SpotifyScaleX
     end
 
-    if SpotifyIndicY <= -0.1 then
-        SpotifyIndicY = 0
+    if SpotifyIndicY <= indicxcomp then
+        SpotifyIndicY = limitval
     elseif SpotifyIndicY + SpotifyScaleY >= 1080.1 then
         SpotifyIndicY = 1080 - SpotifyScaleY
     end
@@ -362,8 +364,8 @@ end
 function SetAutocorner()
     if dragging == true and ui_get(elements.Cornerswitch) then
         if rawmouseposX <= 760 and rawmouseposY <= 540 then
-            surface.draw_filled_rect(0, 0, adaptivesize, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(0, 0, adaptivesize, 100, 40, 40, 255, 190)
+            surface.draw_filled_rect(0+limitval, 0, adaptivesize, 100, 20, 146, 255, 30)
+            surface.draw_outlined_rect(0+limitval, 0, adaptivesize, 100, 40, 40, 255, 190)
                     
             Cornereg = "TL"
         end
@@ -375,8 +377,8 @@ function SetAutocorner()
         end
         
         if rawmouseposX <= 760 and rawmouseposY >= 540 then
-            surface.draw_filled_rect(0, 980, adaptivesize, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(0, 980, adaptivesize, 100, 40, 40, 255, 190)
+            surface.draw_filled_rect(0+limitval, 980, adaptivesize, 100, 20, 146, 255, 30)
+            surface.draw_outlined_rect(0+limitval, 980, adaptivesize, 100, 40, 40, 255, 190)
             Cornereg = "BL"
         end
         
@@ -387,14 +389,14 @@ function SetAutocorner()
         end
         
         if rawmouseposX >= 760 and rawmouseposX <= 1160 and rawmouseposY >= 540 then
-            surface.draw_filled_rect(760, 980, adaptivesize, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(760, 980, adaptivesize, 100, 40, 40, 255, 190)
+            surface.draw_filled_rect(760-limitval, 980, adaptivesize, 100, 20, 146, 255, 30)
+            surface.draw_outlined_rect(760-limitval, 980, adaptivesize, 100, 40, 40, 255, 190)
             Cornereg = "BM"
         end
         
         if rawmouseposX >= 760 and rawmouseposX <= 1160 and rawmouseposY <= 540 then
-            surface.draw_filled_rect(760, 0, adaptivesize, 100, 20, 146, 255, 30)
-            surface.draw_outlined_rect(760, 0, adaptivesize, 100, 40, 40, 255, 190)
+            surface.draw_filled_rect(760-limitval, 0, adaptivesize, 100, 20, 146, 255, 30)
+            surface.draw_outlined_rect(760-limitval, 0, adaptivesize, 100, 40, 40, 255, 190)
             Cornereg = "TM"
         end
             CornerReady = true
@@ -423,7 +425,7 @@ local function Autocorner()
         switch(Cornereg) {
         
             TL = function()
-                SpotifyIndicX = 0
+                SpotifyIndicX = 0+limitval
                 SpotifyIndicY = 0
                 surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
@@ -439,7 +441,7 @@ local function Autocorner()
             end,
         
             BL = function()
-                SpotifyIndicX = 0
+                SpotifyIndicX = 0+limitval
                 SpotifyIndicY = 980
                 surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
@@ -455,7 +457,7 @@ local function Autocorner()
             end,
         
             BM = function()
-                SpotifyIndicX = 760
+                SpotifyIndicX = 760-limitval
                 SpotifyIndicY = 980
                 surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
@@ -463,7 +465,7 @@ local function Autocorner()
             end,
         
             TM = function()
-                SpotifyIndicX = 760
+                SpotifyIndicX = 760-limitval
                 SpotifyIndicY = 0
                 surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, 95, gr1, gg1, gb1, ga1, gr2, gg2, gb2, ga2, true)
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
