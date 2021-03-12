@@ -178,7 +178,7 @@ local elements = {
     PlayPause = ui_new_hotkey("MISC", "Miscellaneous", "Play/Pause", false),
     SkipSong = ui_new_hotkey("MISC", "Miscellaneous", "Skip Song", false),
     PreviousSong = ui_new_hotkey("MISC", "Miscellaneous", "Previous Song", false),
-    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Clantag")
+    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now Playing Name/Clantag")
 }
 
 ui_set(elements.CustomLayoutType, "Left")
@@ -323,13 +323,13 @@ local function Dragging()
             SpotifyIndicX = 0
         elseif SpotifyIndicX + adaptivesize >= sx+0.1 and not ui_get(elements.ArtButton) then
             SpotifyIndicX = sx - adaptivesize
-        elseif SpotifyIndicX - ArtScaleX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" then
+        elseif SpotifyIndicX - ArtScaleX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" and not ui_get(elements.IndicType) == "Minimal" then
             SpotifyIndicX = ArtScaleX
-        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" then
+        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" and not ui_get(elements.IndicType) == "Minimal" then
             SpotifyIndicX = sx - adaptivesize    
-        elseif SpotifyIndicX + adaptivesize + ArtScaleX >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" then
+        elseif SpotifyIndicX + adaptivesize + ArtScaleX >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" and not ui_get(elements.IndicType) == "Minimal" then
             SpotifyIndicX = sx - adaptivesize - ArtScaleX
-        elseif SpotifyIndicX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" then
+        elseif SpotifyIndicX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" and not ui_get(elements.IndicType) == "Minimal" then
             SpotifyIndicX = 0
         else
             SpotifyIndicX = rawmouseposX - xdrag
@@ -479,16 +479,20 @@ local function DrawNowPlaying()
     }
 end
 
+cvar.name:invoke_callback(0)
+cvar.name:set_string("\n\xAD\xAD\xAD")
+
 local duration = 70
 local clantag_prev
 function SpotifyClantag()
     if CurrentDataSpotify == nil then return end
-    clantags = {"Listening to:", CurrentDataSpotify.item.name, "by", CurrentDataSpotify.item.artists[1].name, ""}
+    clantags = {CurrentDataSpotify.item.name, "by", CurrentDataSpotify.item.artists[1].name}
     local cur = math.floor(globals.tickcount() / duration) % #clantags
     clantag = clantags[cur+1]
     if clantag ~= clantag_prev then
         clantag_prev = clantag
-        client.set_clan_tag(clantag)
+        client.set_clan_tag("Listening to:")
+        cvar.name:set_string(clantag)
     end
 end
 
