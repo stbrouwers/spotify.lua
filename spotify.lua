@@ -178,7 +178,7 @@ local elements = {
     PlayPause = ui_new_hotkey("MISC", "Miscellaneous", "Play/Pause", false),
     SkipSong = ui_new_hotkey("MISC", "Miscellaneous", "Skip Song", false),
     PreviousSong = ui_new_hotkey("MISC", "Miscellaneous", "Previous Song", false),
-    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now Playing Name/Clantag")
+    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now Playing Clantag")
 }
 
 ui_set(elements.CustomLayoutType, "Left")
@@ -479,20 +479,16 @@ local function DrawNowPlaying()
     }
 end
 
-cvar.name:invoke_callback(0)
-cvar.name:set_string("\n\xAD\xAD\xAD")
-
 local duration = 70
 local clantag_prev
 function SpotifyClantag()
     if CurrentDataSpotify == nil then return end
-    clantags = {CurrentDataSpotify.item.name, "by", CurrentDataSpotify.item.artists[1].name}
+    clantags = {"Listening to", CurrentDataSpotify.item.name, "by", CurrentDataSpotify.item.artists[1].name}
     local cur = math.floor(globals.tickcount() / duration) % #clantags
     clantag = clantags[cur+1]
     if clantag ~= clantag_prev then
         clantag_prev = clantag
-        client.set_clan_tag("Listening to:")
-        cvar.name:set_string(clantag)
+        client.set_clan_tag(clantag)
     end
 end
 
