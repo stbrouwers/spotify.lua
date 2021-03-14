@@ -623,6 +623,10 @@ end
 
 local function AdjustSize() 
     if not Authed then return end
+    titlexback = titlex or nil
+    if adaptivesize ~= nil then
+        SpotifyIndicX2 = SpotifyIndicX+adaptivesize
+    end
     
     titlex, titley = surface.get_text_size(TitleFont, SongName)+50
     artistx, artisty = surface.get_text_size(ArtistFont, ArtistName)+50
@@ -631,6 +635,14 @@ local function AdjustSize()
         adaptivesize = titlex
     else
         adaptivesize = artistx
+    end
+
+    if titlexback ~= titlex and titlexback ~= nil and not ui_get(elements.ArtButton)then
+        SpotifyIndicX = SpotifyIndicX2 - adaptivesize
+    end
+
+    if titlexback ~= titlex and titlexback ~= nil and ui_get(elements.CustomLayoutType) == "Right" then
+        SpotifyIndicX = SpotifyIndicX2 - adaptivesize
     end
 
     if ui_get(elements.MinimumWidth) > 199 and adaptivesize < ui.get(elements.MinimumWidth) then
@@ -737,7 +749,7 @@ local function DrawNowPlaying()
             if ui_get(elements.CustomLayoutType) == "Left" and ui_get(elements.ArtButton) then 
                 surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba) 
             elseif ui_get(elements.CustomLayoutType) == "Right" and ui_get(elements.ArtButton) then 
-                surface.draw_filled_rect(adaptivesize+SpotifyIndicX, SpotifyIndicY, SpotifyIndicX-adaptivesize, SpotifyScaleY, br, bg, bb, ba) 
+                surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba) 
             else 
                 surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba) 
             end
