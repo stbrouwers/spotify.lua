@@ -400,6 +400,24 @@ function ShowMenuElements()
         elseif ui_get(elements.IndicType) == "Minimal" then
             ui_set_visible(elements.MinimumWidth, false)
             ui_set_visible(elements.ArtButton, false)
+            ui_set_visible(elements.ProgressGradientSwitch, false)
+            ui_set_visible(elements.BackgroundGradientSwitch, false)
+            ui_set_visible(elements.BackgroundColour, false)
+            ui_set_visible(elements.LabelBackgroundColor, false)
+            ui_set_visible(elements.LabelTextColorPrimary, false)
+            ui_set_visible(elements.TextColorPrimary, false)
+            ui_set_visible(elements.LabelTextColorSecondary, false)
+            ui_set_visible(elements.TextColorSecondary, false)
+            ui_set_visible(elements.BackgroundColorGradient1, false)
+            ui_set_visible(elements.LabelBackgroundColorGradient1, false)
+            ui_set_visible(elements.BackgroundColorGradient2, false)
+            ui_set_visible(elements.LabelBackgroundColorGradient2, false)
+            ui_set_visible(elements.LabelProgressGradient1, false)
+            ui_set_visible(elements.ProgressGradient1, false)
+            ui_set_visible(elements.LabelProgressGradient2, false)
+            ui_set_visible(elements.ProgressGradient2, false)
+            ui_set_visible(elements.GradientColour, false)
+            ui_set_visible(elements.LabelGradientColour, false)
 
             if ui_get(elements.CustomColors) then
                 ui_set_visible(elements.GradientColour, true)
@@ -537,7 +555,7 @@ function UpdateElements()
 
         TOKEN = function()
             if ui_get(elements.Connected) == "> Please put your API key into your clipboard (Invalid token)" then return end
-            ui_set(elements.Connected, "> Authorization failed, token expired or invalid permissions")
+            ui_set(elements.Connected, "> Please play a song before authorising. If you are listening then your token has expired.")
         end,
 
         FORBIDDEN = function()
