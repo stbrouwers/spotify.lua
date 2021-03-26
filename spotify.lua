@@ -736,8 +736,8 @@ local function CustomLayout()
 --            end
         }
     else 
-        surface.draw_text(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-        surface.draw_text(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
     end
 end
         
