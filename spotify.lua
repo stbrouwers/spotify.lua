@@ -20,8 +20,12 @@ local ui_new_hotkey = ui.new_hotkey
 local last_update = client.unix_time()
 local last_update_controls = client.unix_time()
 local sx, sy = client.screen_size()
-local TitleFont = surface.create_font("GothamBookItalic", sy/41.54, 900, 0x010)
-local ArtistFont = surface.create_font("GothamBookItalic", sy/63.53, 600, 0x010)
+MenuScaleX = 4.8
+MenuScaleY = 10.8
+ScaleTitle = 41.54
+ScaleArtist = 63.53
+local TitleFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
+local ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 0x010)
 
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
 
@@ -44,6 +48,8 @@ local function CP()
     end
 end
 
+retardedJpg = false
+
 dragging = false
 Authed = false
 CornerReady = false
@@ -53,7 +59,7 @@ limitval = 0
 indicxcomp = -0.1
 SpotifyScaleX = sx/4.8
 SpotifyScaleY = sy/10.8
-ArtScaleX, ArtScaleY = SpotifyScaleY
+ArtScaleX, ArtScaleY = SpotifyScaleY, SpotifyScaleY
 UpdateCount = 0
 ClickSpree = 0
 ClickSpreeTime = 1
@@ -183,7 +189,6 @@ function UpdateInf()
                   return
                 end
             Thumbnail = images.load_jpg(response.body)
-            client.log(Thumbnail)
             end)
         end)
 end
@@ -295,7 +300,8 @@ local elements = {
     PlayPause = ui_new_hotkey("MISC", "Miscellaneous", "  - Play/Pause", false),
     SkipSong = ui_new_hotkey("MISC", "Miscellaneous", "  - Skip song", false),
     PreviousSong = ui_new_hotkey("MISC", "Miscellaneous", "  - Previous song", false),
-    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag")
+    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
+    MenuSize = ui_new_slider("MISC", "Miscellaneous", "Scale", 33, 167, 100, true, "%")
 }
 
 ui_set(elements.CustomLayoutType, "Left")
@@ -333,6 +339,9 @@ function ShowMenuElements()
         ui_set_visible(elements.LabelGradientColour, true)
         ui_set_visible(elements.CustomColors, true)
         ui_set_visible(elements.ControlSwitch, true)
+        ui_set_visible(elements.Clantag, true)
+        ui_set_visible(elements.MenuSize, true)
+
         
         if ui_get(elements.IndicType) == "Spotify" then
             ui_set_visible(elements.ArtButton, true)
@@ -472,7 +481,6 @@ function ShowMenuElements()
         end
 
         ui_set_visible(elements.DebugInfo, Authed and UserName == "stbrouwers" or Authed and UserName == "slxyx" or Authed and UserName == "Encoded")
-        ui_set_visible(elements.Clantag, Authed and UserName == "stbrouwers" or Authed and UserName == "slxyx" or Authed and UserName == "Encoded")
 
         if ui_get(elements.DebugInfo) then
             ui_set_visible(elements.NowPlaying, true)
@@ -624,10 +632,7 @@ end
 local function AdjustSize() 
     if not Authed then return end
     titlexback = titlex or nil
-    if adaptivesize ~= nil then
-        SpotifyIndicX2 = SpotifyIndicX+adaptivesize
-    end
-    
+
     titlex, titley = surface.get_text_size(TitleFont, SongName)+50
     artistx, artisty = surface.get_text_size(ArtistFont, ArtistName)+50
 
@@ -637,17 +642,18 @@ local function AdjustSize()
         adaptivesize = artistx
     end
 
-    if titlexback ~= titlex and titlexback ~= nil and not ui_get(elements.ArtButton)then
+    if titlexback ~= titlex and titlexback ~= nil and not ui_get(elements.ArtButton) and ui_get(elements.IndicType) == "Spotify" then
         SpotifyIndicX = SpotifyIndicX2 - adaptivesize
     end
 
-    if titlexback ~= titlex and titlexback ~= nil and ui_get(elements.CustomLayoutType) == "Right" then
+    if titlexback ~= titlex and titlexback ~= nil and SpotifyIndicX2 ~= nil and ui_get(elements.CustomLayoutType) == "Right" and ui_get(elements.IndicType) == "Spotify" then
         SpotifyIndicX = SpotifyIndicX2 - adaptivesize
     end
 
     if ui_get(elements.MinimumWidth) > 199 and adaptivesize < ui.get(elements.MinimumWidth) then
         adaptivesize = ui.get(elements.MinimumWidth)
     end
+
     if ui_get(elements.IndicType) == "Minimal" then
         if SpotifyIndicX <= -0.1 then
             SpotifyIndicX = 0
@@ -677,10 +683,11 @@ local function AdjustSize()
     elseif SpotifyIndicY + SpotifyScaleY >= sy+0.1 then
         SpotifyIndicY = sy - SpotifyScaleY
     end
-
+    SpotifyIndicX2 = SpotifyIndicX+adaptivesize
 end
         
 local function CustomLayout() 
+    ArtScaleX, ArtScaleY = SpotifyScaleY, SpotifyScaleY
     if ui_get(elements.CustomColors) then
         tr1, tg1, tb1, ta1 = ui.get(elements.TextColorPrimary)
         tr2, tg2, tb2, ta2 = ui.get(elements.TextColorSecondary)
@@ -693,15 +700,31 @@ local function CustomLayout()
         switch(ui_get(elements.CustomLayoutType)) {
         
             Left = function()
-                if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX-ArtScaleX, SpotifyIndicY, ArtScaleX, ArtScaleY) else end
-                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                if ui_get(elements.ArtButton) and Thumbnail ~= nil then
+                    local function drawLeft()
+                        Thumbnail:draw(SpotifyIndicX-ArtScaleX, SpotifyIndicY, ArtScaleX, ArtScaleY)
+                    end
+                    status, retval = pcall(drawLeft)
+                    if status == false then
+                        retardedJpg = true
+                    end
+                else end
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
             end,
 
             Right = function()
-                if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX+adaptivesize, SpotifyIndicY, ArtScaleX, ArtScaleY) else end
-                surface.draw_text(SpotifyIndicX + adaptivesize - titlex + (SpotifyScaleY/100*40), SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                surface.draw_text(SpotifyIndicX + adaptivesize - artistx + (SpotifyScaleY/100*40), SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                if ui_get(elements.ArtButton) and Thumbnail ~= nil then
+                    local function drawRight()
+                        Thumbnail:draw(SpotifyIndicX+adaptivesize, SpotifyIndicY, ArtScaleX, ArtScaleY)
+                    end
+                    status, retval = pcall(drawRight)
+                    if status == false then
+                        retardedJpg = true
+                    end
+                    else end
+                surface.draw_text(SpotifyIndicX + adaptivesize - titlex + (SpotifyScaleY/100*40), SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX + adaptivesize - artistx + (SpotifyScaleY/100*40), SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
             end
             
 --            Top = function()
@@ -717,8 +740,8 @@ local function CustomLayout()
 --            end
         }
     else 
-        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+        surface.draw_text(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+        surface.draw_text(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
     end
 end
         
@@ -744,12 +767,19 @@ local function DrawNowPlaying()
     switch(ui_get(elements.IndicType)) {
 
         Spotify = function()
-            SpotifyScaleX = sx/4.8
-            SpotifyScaleY = sy/10.8 
-            if ui_get(elements.CustomLayoutType) == "Left" and ui_get(elements.ArtButton) then 
-                surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba) 
+            SpotifyScaleX = sx/MenuScaleX
+            SpotifyScaleY = sy/MenuScaleY
+            --client.log(SpotifyScaleX)
+            if ui_get(elements.CustomLayoutType) == "Left" and ui_get(elements.ArtButton) then
+                surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba)
+                surface.draw_filled_rect(SpotifyIndicX-ArtScaleX, SpotifyIndicY, SpotifyScaleY, SpotifyScaleY, 18, 18, 18, 255)
+                renderer.circle_outline(SpotifyIndicX-ArtScaleX/2, SpotifyIndicY+SpotifyScaleY/2, 64, 64, 64, 255, SpotifyScaleY/10, 0, 1, 3)
+                renderer.circle_outline(SpotifyIndicX-ArtScaleX/2, SpotifyIndicY+SpotifyScaleY/2, 64, 64, 64, 255, (SpotifyScaleY/100)*35, 0, 1, 3)
             elseif ui_get(elements.CustomLayoutType) == "Right" and ui_get(elements.ArtButton) then 
                 surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba) 
+                surface.draw_filled_rect(SpotifyIndicX+adaptivesize, SpotifyIndicY, ArtScaleX, ArtScaleX, 18, 18, 18, 255)
+                renderer.circle_outline(SpotifyIndicX+adaptivesize+ArtScaleX/2, SpotifyIndicY+SpotifyScaleY/2, 64, 64, 64, 255, SpotifyScaleY/10, 0, 1, 3)
+                renderer.circle_outline(SpotifyIndicX+adaptivesize+ArtScaleX/2, SpotifyIndicY+SpotifyScaleY/2, 64, 64, 64, 255, (SpotifyScaleY/100)*35, 0, 1, 3)
             else 
                 surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba) 
             end
@@ -789,6 +819,17 @@ local function DrawNowPlaying()
             end
         end
     }
+end
+
+function ChangeMenuSize()
+    client.log(ui_get(elements.MenuSize))
+    MenuScaleChange = 2 - ui_get(elements.MenuSize)/100
+    MenuScaleX = 4.8 * MenuScaleChange
+    MenuScaleY = 10.8 * MenuScaleChange
+    ScaleTitle = 41.54 * MenuScaleChange
+    ScaleArtist = 63.53 * MenuScaleChange
+    TitleFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
+    ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 0x010)
 end
 
 local duration = 70
@@ -846,6 +887,7 @@ ui_set_callback(MainCheckbox, ShowMenuElements)
 ui_set_callback(elements.ArtButton, ShowMenuElements)
 ui_set_callback(elements.DebugInfo, ShowMenuElements)
 ui_set_callback(elements.CustomColors, ShowMenuElements)
+ui_set_callback(elements.MenuSize, ChangeMenuSize)
 
 client.set_event_callback("paint_ui", OnFrame)
 
