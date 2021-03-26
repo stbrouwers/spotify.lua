@@ -642,10 +642,6 @@ local function AdjustSize()
         adaptivesize = artistx
     end
 
-    if titlexback ~= titlex and titlexback ~= nil and not ui_get(elements.ArtButton) and ui_get(elements.IndicType) == "Spotify" then
-        SpotifyIndicX = SpotifyIndicX2 - adaptivesize
-    end
-
     if titlexback ~= titlex and titlexback ~= nil and SpotifyIndicX2 ~= nil and ui_get(elements.CustomLayoutType) == "Right" and ui_get(elements.IndicType) == "Spotify" then
         SpotifyIndicX = SpotifyIndicX2 - adaptivesize
     end
