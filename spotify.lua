@@ -792,7 +792,7 @@ local function CustomLayout()
                 surface.draw_text(SpotifyIndicX + adaptivesize - titlex + (SpotifyScaleY/100*40), SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
                 surface.draw_text(SpotifyIndicX + adaptivesize - artistx + (SpotifyScaleY/100*40), SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
                 if ui_get(elements.SongDurationToggle) then
-                    surface.draw_text(SpotifyIndicX+adaptivesize-(SpotifyScaleY/100)*60, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
+                    surface.draw_text(SpotifyIndicX+8, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
                 end
             end
         }
@@ -801,7 +801,7 @@ local function CustomLayout()
         surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
 
         if ui_get(elements.SongDurationToggle) then
-            surface.draw_text(SpotifyIndicX+adaptivesize-(SpotifyScaleY/100)*60, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
+            surface.draw_text(SpotifyIndicX+adaptivesize-(SpotifyScaleY/100)*85, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
         end
     end
 end
