@@ -22,6 +22,7 @@ local last_update = client.unix_time()
 local last_update_controls = client.unix_time()
 local last_update_error = client.unix_time()
 local sx, sy = client.screen_size()
+
 MenuScaleX = 4.8
 MenuScaleY = 10.8
 ScaleTitle = 41.54
@@ -31,20 +32,17 @@ local TitleFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x
 local ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 0x010)
 local DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 600, 0x010)
 
-
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
 
 local SpotifyIndicX = database_read("previous_posX") or 0
 local SpotifyIndicY = database_read("previous_posY") or 1020
 local SizePerc = database_read("previous_size") or 30
-local apikey = database_read("StoredKey") or ""
-
+local apikey = database_read("StoredKey") or nil
+local refreshkey = database_read("StoredKey2") or nil
 
 local native_GetClipboardTextCount = vtable_bind("vgui2.dll", "VGUI_System010", 7, "int(__thiscall*)(void*)")
 local native_GetClipboardText = vtable_bind("vgui2.dll", "VGUI_System010", 11, "int(__thiscall*)(void*, int, const char*, int)")
 local new_char_arr = ffi.typeof("char[?]")
-
-
 
 local function CP()
     local len = native_GetClipboardTextCount()
@@ -56,23 +54,26 @@ local function CP()
 end
 
 retardedJpg = false
-
 dragging = false
 Authed = false
 CornerReady = false
 ControlCheck = false
 AuthClicked = false
+SongChanged = false
 
 limitval = 0
 indicxcomp = -0.1
 SpotifyScaleX = sx/4.8
 SpotifyScaleY = sy/10.8
+SpotifyIndicX2 = 1
+adaptivesize = 400
 ArtScaleX, ArtScaleY = SpotifyScaleY, SpotifyScaleY
 UpdateCount = 0
 ClickSpree = 0
 ClickSpreeTime = 1
 TotalErrors = 0
 ErrorSpree = 0
+NewApiKeyRequest = 0
 
 
 AuthStatus = "> Not connected"
@@ -84,8 +85,8 @@ SongProgression = "-"
 SongLength = "-"
 TotalDuration = "-"
 ProgressDuration = "-"
-AuthURL = "https://developer.spotify.com/console/get-users-currently-playing-track/"
-RefreshURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=b94232a2e5844ac2a1ea2ef9bd8e99a4&scope=user-read-private%20user-read-playback-position%20user-read-recently-played%20user-modify-playback-state%20user-read-playback-state%20user-read-currently-playing&redirect_uri=https%3A%2F%2Fspotify.stbrouwers.cc/callback"
+SongNameBack = "-"
+AuthURL = "https://spotify.stbrouwers.cc/"
 
 if database_read("previous_posX") == nil then
     database_write("previous_posX", SpotifyIndicX)
@@ -123,8 +124,7 @@ local msConversion = function(b)
     end 
 end
 
-
-local function GetToken() 
+local function GetRefreshToken() 
     if AuthClicked == false then return end
     local js = panorama.loadstring([[
         return {
@@ -136,19 +136,50 @@ local function GetToken()
       js.open_url(AuthURL) 
 end
 
-function Auth() 
-    if AuthClicked == true then apikey = CP() end
-    if apikey == nil then GetToken() return end
+function GetApiToken() 
+    if NewApiKeyRequest <= 5 then
+        if PendingRequest then return end
+        PendingRequest = true
+        if AuthClicked == true then
+            AuthStatus = "TRYING"
+        end
+        http.get("https://spotify.stbrouwers.cc/refresh_token?refresh_token="..refreshkey, function(s, r)
+            if r.status ~= 200 then
+                AuthStatus = "WRONGKEY"
+                PendingRequest = false
+                GetRefreshToken()
+                NewApiKeyRequest = NewApiKeyRequest + 1
+            return
+            else
+                PendingRequest = false
+                NewApiKeyRequest = 0
+                parsed = json.parse(r.body)
+                apikey = parsed.access_token
+                Auth()
+            end
+        end)
+    else
+        return
+    end
+end
+
+function Auth()
+    if AuthClicked == true then refreshkey = CP() end
+    if refreshkey == nil then GetRefreshToken() return end
+    if refreshkey ~= nil and apikey == nil then
+        GetApiToken()
+        return end
+    if refreshkey ~= nil and apikey ~= nil then
         http.get("https://api.spotify.com/v1/me?&access_token=" .. apikey, function(success, response)
             ConnectionStatus = response.status
             if not success or response.status ~= 200 then
                 ConnectionStatus = response.status
                 Authed = false
                 AuthStatus = "FAILED"
-                GetToken()
+                GetApiToken()
                 ShowMenuElements()
                 UpdateElements()
-                return end
+            return end
                 UpdateCount = UpdateCount + 1
                 spotidata = json.parse(response.body)
                 UserName = spotidata.display_name
@@ -156,7 +187,8 @@ function Auth()
                 AuthStatus = "SUCCESS"
                 ShowMenuElements()
                 UpdateElements()
-            end)
+        end)
+    end
 end
 Auth()
 
@@ -188,14 +220,8 @@ function DAuth()
     UpdateElements()
 end
 
-function ResetAPI() 
-    Authed = false
-    ConnectionStatus = "NoConnection"
-    GetToken()
-    ShowMenuElements()
-end
-
 function UpdateInf()
+    SongNameBack = SongName
     DAuth() 
     http.get("https://api.spotify.com/v1/me/player?access_token=" .. apikey, function(success, response)
         if not success or response.status ~= 200 then
@@ -228,6 +254,10 @@ function UpdateInf()
                 end
             Thumbnail = images.load_jpg(response.body)
             end)
+            if SongNameBack ~= SongName and SongNameBack ~= nil then
+                SpotifyIndicX2 = SpotifyIndicX+adaptivesize
+                SongChanged = true
+            end
         end)
 end
 
@@ -241,7 +271,7 @@ function PlayPause()
             ["Content-length"] = 0
         }
     }
-    
+
     if CurrentDataSpotify.is_playing then
 
         http.put("https://api.spotify.com/v1/me/player/pause?device_id=" .. deviceid, options, function(s, r)
@@ -306,49 +336,64 @@ local elements = {
     IndicType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Spotify", "Minimal"),
     MenuSize = ui_new_slider("MISC", "Miscellaneous", "Scale", 50, 150, 100, true, "%"),
     MinimumWidth = ui_new_slider("MISC", "Miscellaneous", "Minimum box width", 199, 600, 400, true, "px", 1, { [199] = "Auto"}),
+    
     DebugInfo = ui_new_checkbox("MISC", "Miscellaneous", "Debug info"),
-    NowPlaying = ui_new_label("MISC", "Miscellaneous", "Now playing:" .. SongName),
-    Artist = ui_new_label("MISC", "Miscellaneous", "By:" .. ArtistName),
-    SongDuration = ui_new_label("MISC", "Miscellaneous", SongProgression .. SongLength),
-    UpdateRate = ui_new_slider("MISC", "Miscellaneous", "UpdateRate", 0.5, 5, 1, true, "s"),
-    RateLimitWarning = ui_new_label("MISC", "Miscellaneous", "WARNING: using <1s updaterate might get you ratelimited"),
-    SessionUpdates = ui_new_label("MISC", "Miscellaneous", "Total updates this session: " .. UpdateCount),
-    TotalErrors = ui_new_label("MISC", "Miscellaneous", "Errors this session: " .. TotalErrors),
-    SpreeErrors = ui_new_label("MISC", "Miscellaneous", "Errors this spree: " .. ErrorSpree),
-    RecentError = ui_new_label("MISC", "Miscellaneous", "Most recent error: " .. "-"),
-    MaxErrors = ui_new_slider("MISC", "Miscellaneous", "Max errors", 1, 20, 5, true, "x"),
-    ErrorRate = ui_new_slider("MISC", "Miscellaneous", "within", 5, 300, 30, true, "s"),
-    ResetKey = ui_new_button("MISC", "Miscellaneous", "Reset", ResetAPI),
+        NowPlaying = ui_new_label("MISC", "Miscellaneous", "Now playing:" .. SongName),
+        Artist = ui_new_label("MISC", "Miscellaneous", "By:" .. ArtistName),
+        SongDuration = ui_new_label("MISC", "Miscellaneous", SongProgression .. SongLength),
+        UpdateRate = ui_new_slider("MISC", "Miscellaneous", "Update rate", 0.5, 5, 1, true, "s"),
+        RateLimitWarning = ui_new_label("MISC", "Miscellaneous", "WARNING: using <1s updaterate might get you ratelimited"),
+        SessionUpdates = ui_new_label("MISC", "Miscellaneous", "Total updates this session: " .. UpdateCount),
+        TotalErrors = ui_new_label("MISC", "Miscellaneous", "Errors this session: " .. TotalErrors),
+        SpreeErrors = ui_new_label("MISC", "Miscellaneous", "Errors this spree: " .. ErrorSpree),
+        RecentError = ui_new_label("MISC", "Miscellaneous", "Most recent error: " .. "-"),
+        MaxErrors = ui_new_slider("MISC", "Miscellaneous", "Max errors", 1, 20, 5, true, "x"),
+        ErrorRate = ui_new_slider("MISC", "Miscellaneous", "within", 5, 300, 30, true, "s"),
+        SpotifyPosition = ui_new_label("MISC", "Miscellaneous", "Position(x - x2(width), y): " .. SpotifyIndicX .. " - " .. SpotifyIndicX2 .. "(" .. adaptivesize .. "), " .. SpotifyIndicY .. "y"),
+        AddError = ui_new_button("MISC", "Miscellaneous", "Add an error", function() AuthStatus = "TOKEN" ErrorSpree = ErrorSpree + 1 TotalErrors = TotalErrors + 1 end),
+        ForceReflowButton = ui_new_button("MISC", "Miscellaneous", "Force element reflow", function() ForceReflow() end),
+
+
+
     ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Cover art"),
-    CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Left", "Right"),
-    SongDurationToggle = ui_new_checkbox("MISC", "Miscellaneous", "Song duration"),
+        CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Left", "Right"),
+        SongDurationToggle = ui_new_checkbox("MISC", "Miscellaneous", "Song duration"),
+
     CustomColors = ui_new_checkbox("MISC", "Miscellaneous", "Custom colors"),
-    ProgressGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient progress bar"),
-    BackgroundGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient background"),
-    LabelProgressGradient1 = ui_new_label("MISC", "Miscellaneous", "  - Progress gradient L"),
-    ProgressGradient1 = ui_new_color_picker("MISC", "Miscellaneous", "progressbar gradient 1", 0, 255, 0, 255),
-    LabelProgressGradient2 = ui_new_label("MISC", "Miscellaneous", "  - Progress gradient R"),
-    ProgressGradient2 = ui_new_color_picker("MISC", "Miscellaneous", "progressbar gradient 2", 0, 255, 0, 255),
-    LabelGradientColour = ui_new_label("MISC", "Miscellaneous", "  - Progress bar color"),
-    GradientColour = ui.new_color_picker("MISC", "Miscellaneous", "progress bar Colourpicker", 0, 255, 0, 255),
-    LabelBackgroundColor = ui_new_label("MISC", "Miscellaneous", "  - Background color"),
-    BackgroundColour = ui_new_color_picker("MISC", "Miscellaneous", "Background colourrpicker", 25, 25, 25, 255),
-    LabelBackgroundColorGradient1 = ui_new_label("MISC", "Miscellaneous", "  - Background gradient L"),
-    BackgroundColorGradient1 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker1", 25, 25, 25, 50),
-    LabelBackgroundColorGradient2 = ui_new_label("MISC", "Miscellaneous", "  - Background gradient R"),
-    BackgroundColorGradient2 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker2", 25, 25, 25, 255),
-    LabelTextColorPrimary = ui_new_label("MISC", "Miscellaneous", "  - Primary text color"),
-    TextColorPrimary = ui_new_color_picker("MISC", "Miscellaneous", "Primary text clr", 255, 255, 255, 255),
-    LabelTextColorSecondary = ui_new_label("MISC", "Miscellaneous", "  - Secondary text color"),
-    TextColorSecondary = ui_new_color_picker("MISC", "Miscellaneous", "Secondary text clr", 159, 159, 159, 255),
+        ProgressGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient progress bar"),
+        BackgroundGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient background"),
+            LabelProgressGradient1 = ui_new_label("MISC", "Miscellaneous", "  - Progress gradient L"),
+            ProgressGradient1 = ui_new_color_picker("MISC", "Miscellaneous", "progressbar gradient 1", 0, 255, 0, 255),
+            LabelProgressGradient2 = ui_new_label("MISC", "Miscellaneous", "  - Progress gradient R"),
+            ProgressGradient2 = ui_new_color_picker("MISC", "Miscellaneous", "progressbar gradient 2", 0, 255, 0, 255),
+        LabelGradientColour = ui_new_label("MISC", "Miscellaneous", "  - Progress bar color"),
+        GradientColour = ui.new_color_picker("MISC", "Miscellaneous", "progress bar Colourpicker", 0, 255, 0, 255),
+        LabelBackgroundColor = ui_new_label("MISC", "Miscellaneous", "  - Background color"),
+        BackgroundColour = ui_new_color_picker("MISC", "Miscellaneous", "Background colourrpicker", 25, 25, 25, 255),
+            LabelBackgroundColorGradient1 = ui_new_label("MISC", "Miscellaneous", "  - Background gradient L"),
+            BackgroundColorGradient1 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker1", 25, 25, 25, 50),
+            LabelBackgroundColorGradient2 = ui_new_label("MISC", "Miscellaneous", "  - Background gradient R"),
+            BackgroundColorGradient2 = ui_new_color_picker("MISC", "Miscellaneous", "Background Gradient colourpicker2", 25, 25, 25, 255),
+        LabelTextColorPrimary = ui_new_label("MISC", "Miscellaneous", "  - Primary text color"),
+        TextColorPrimary = ui_new_color_picker("MISC", "Miscellaneous", "Primary text clr", 255, 255, 255, 255),
+        LabelTextColorSecondary = ui_new_label("MISC", "Miscellaneous", "  - Secondary text color"),
+        TextColorSecondary = ui_new_color_picker("MISC", "Miscellaneous", "Secondary text clr", 159, 159, 159, 255),
+        
     ControlSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Controls"),
-    SmartControlSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Smart controls"),
-    SmartControls = ui_new_hotkey("MISC", "Miscellaneous", "  - Smart Controls", true),
-    PlayPause = ui_new_hotkey("MISC", "Miscellaneous", "  - Play/Pause", false),
-    SkipSong = ui_new_hotkey("MISC", "Miscellaneous", "  - Skip song", false),
-    PreviousSong = ui_new_hotkey("MISC", "Miscellaneous", "  - Previous song", false),
-    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag")
+        SmartControlSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Smart controls"),
+            SmartControls = ui_new_hotkey("MISC", "Miscellaneous", "  - Smart Controls", true),
+
+        PlayPause = ui_new_hotkey("MISC", "Miscellaneous", "  - Play/Pause", false),
+        SkipSong = ui_new_hotkey("MISC", "Miscellaneous", "  - Skip song", false),
+        PreviousSong = ui_new_hotkey("MISC", "Miscellaneous", "  - Previous song", false),
+
+    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
+    ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
 }
+
+function setConnected(value)
+    ui_set(elements.Connected, value)
+end
 
 ui_set(elements.CustomLayoutType, "Left")
 
@@ -376,7 +421,6 @@ function ShowMenuElements()
     if ui_get(MainCheckbox) and Authed then
         ui_set_visible(elements.Connected, true)
         ui_set_visible(elements.AuthButton, false)
-        ui_set_visible(elements.ResetKey, false)
         ui_set_visible(elements.NowPlaying, true)
         ui_set_visible(elements.Artist, true)
         ui_set_visible(elements.SongDuration, true)
@@ -388,9 +432,8 @@ function ShowMenuElements()
         ui_set_visible(elements.Clantag, true)
         ui_set_visible(elements.MenuSize, true)
         ui_set_visible(elements.SongDurationToggle, true)
+        ui_set_visible(elements.ResetAuth, true)
 
-
-        
         if ui_get(elements.IndicType) == "Spotify" then
             ui_set_visible(elements.ArtButton, true)
             ui_set_visible(elements.MinimumWidth, true)
@@ -433,6 +476,7 @@ function ShowMenuElements()
                     ui_set_visible(elements.BackgroundColorGradient2, false)
                     ui_set_visible(elements.LabelBackgroundColorGradient2, false)
                 end
+                
             else
                 ui_set_visible(elements.ProgressGradientSwitch, false)
                 ui_set_visible(elements.BackgroundGradientSwitch, false)
@@ -453,6 +497,7 @@ function ShowMenuElements()
                 ui_set_visible(elements.GradientColour, false)
                 ui_set_visible(elements.LabelGradientColour, false)
             end
+            
         elseif ui_get(elements.IndicType) == "Minimal" then
             ui_set_visible(elements.MinimumWidth, false)
             ui_set_visible(elements.ArtButton, false)
@@ -478,8 +523,6 @@ function ShowMenuElements()
             ui_set(elements.CustomLayoutType, "Left")
             ui_set_visible(elements.CustomLayoutType, false)
             ui_set_visible(elements.SongDurationToggle, false)
-
-
 
             if ui_get(elements.CustomColors) then
                 ui_set_visible(elements.GradientColour, true)
@@ -533,7 +576,7 @@ function ShowMenuElements()
             ui_set_visible(elements.PlayPause, false)
         end
 
-        ui_set_visible(elements.DebugInfo, Authed and UserName == "stbrouwers" or Authed and UserName == "slxyx" or Authed and UserName == "Encoded")
+        ui_set_visible(elements.DebugInfo, Authed and UserName == "stbrouwers" or Authed and UserName == "slxyx" or Authed and UserName == "Encoded" or Authed and UserName == "22fzreq5auy5njejk6fzp7nhy")
 
         if ui_get(elements.DebugInfo) then
             ui_set_visible(elements.NowPlaying, true)
@@ -547,6 +590,9 @@ function ShowMenuElements()
             ui_set_visible(elements.RecentError, true)
             ui_set_visible(elements.ErrorRate, true)
             ui_set_visible(elements.MaxErrors, true)
+            ui_set_visible(elements.AddError, true)
+            ui_set_visible(elements.SpotifyPosition, true)
+            ui_set_visible(elements.ForceReflowButton, true)
         else
             ui_set_visible(elements.NowPlaying, false)
             ui_set_visible(elements.Artist, false)
@@ -559,13 +605,16 @@ function ShowMenuElements()
             ui_set_visible(elements.RecentError, false)
             ui_set_visible(elements.ErrorRate, false)
             ui_set_visible(elements.MaxErrors, false)
+            ui_set_visible(elements.AddError, false)
+            ui_set_visible(elements.SpotifyPosition, false)
+            ui_set_visible(elements.ForceReflowButton, false)
         end
 
     elseif ui_get(MainCheckbox) and not Authed then
-
         ui_set_visible(elements.Connected, true)
         ui_set_visible(elements.AuthButton, true)
-        ui_set_visible(elements.ResetKey, ConnectionStatus == 401)
+        ui_set_visible(elements.ResetAuth, true)
+
         
     elseif not ui_get(MainCheckbox) then
         for k,v in pairs(elements) do
@@ -582,6 +631,34 @@ function ShowMenuElements()
             ui.set_visible(v, false)
         end
     end
+end
+
+function ForceReflow()
+    for k,v in pairs(elements) do
+        for m,w in pairs(elements) do
+            if k ~= m then
+                if w == v then
+                    elements[m] = nil
+                    elements[k] = nil
+                end
+            end
+        end
+    end
+    for k,v in pairs(elements) do
+        ui.set_visible(v, false)
+    end
+    ShowMenuElements()
+end
+
+function ResetAPI() 
+    Authed = false
+    ConnectionStatus = "NoConnection"
+    apikey = nil
+    refreshkey = nil
+    database_write("StoredKey", nil)
+    database_write("StoredKey2", nil)
+    ForceReflow()
+    client.reload_active_scripts()
 end
 
 function MusicControls()
@@ -642,6 +719,15 @@ function UpdateElements()
         APIFAIL = function()
             ui_set(elements.Connected, "> An issue on Spotify's end has occurred. Check their status page")
             ui_set(elements.RecentError, "Most recent error: " .. "503, APIFAIL")
+        end,
+
+        TRYING = function()
+            ui_set(elements.Connected, "> Trying the refresh key")
+        end,
+
+        WRONGKEY = function() 
+            ui_set(elements.Connected, "> The supplied refresh key was invalid, please try again.")
+            ui_set(elements.RecentError, "Most recent error: " .. "XXX, WRONGKEY")
         end
     }
 
@@ -685,7 +771,6 @@ local function Dragging()
         else    
             SpotifyIndicY = rawmouseposY - ydrag
         end
-
     end
 
     if intersect(SpotifyIndicX - startpos.DRegionx, SpotifyIndicY - startpos.DRegiony, adaptivesize, SpotifyScaleY, false) and LClick then 
@@ -697,7 +782,6 @@ end
 
 local function AdjustSize() 
     if not Authed then return end
-    titlexback = titlex or nil
 
     titlex, titley = surface.get_text_size(TitleFont, SongName)+50
     artistx, artisty = surface.get_text_size(ArtistFont, ArtistName)+50
@@ -708,12 +792,13 @@ local function AdjustSize()
         adaptivesize = artistx
     end
 
-    if titlexback ~= titlex and titlexback ~= nil and SpotifyIndicX2 ~= nil and ui_get(elements.CustomLayoutType) == "Right" and ui_get(elements.IndicType) == "Spotify" then
-        SpotifyIndicX = SpotifyIndicX2 - adaptivesize
-    end
-
     if ui_get(elements.MinimumWidth) > 199 and adaptivesize < ui.get(elements.MinimumWidth) then
         adaptivesize = ui.get(elements.MinimumWidth)
+    end
+
+    if SongChanged and ui_get(elements.CustomLayoutType) == "Right" and ui_get(elements.IndicType) == "Spotify" then
+        SpotifyIndicX = SpotifyIndicX2 - adaptivesize
+        SongChanged = false
     end
 
     if ui_get(elements.IndicType) == "Minimal" then
@@ -745,7 +830,7 @@ local function AdjustSize()
     elseif SpotifyIndicY + SpotifyScaleY >= sy+0.1 then
         SpotifyIndicY = sy - SpotifyScaleY
     end
-    SpotifyIndicX2 = SpotifyIndicX+adaptivesize
+    SpotifyIndicX2 = SpotifyIndicX + adaptivesize
 end
         
 local function CustomLayout() 
@@ -789,8 +874,8 @@ local function CustomLayout()
                         retardedJpg = true
                     end
                     else end
-                surface.draw_text(SpotifyIndicX + adaptivesize - titlex + (SpotifyScaleY/100*40), SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                surface.draw_text(SpotifyIndicX + adaptivesize - artistx + (SpotifyScaleY/100*40), SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                surface.draw_text(SpotifyIndicX + adaptivesize - titlex +40, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                surface.draw_text(SpotifyIndicX + adaptivesize - artistx +40, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
                 if ui_get(elements.SongDurationToggle) then
                     surface.draw_text(SpotifyIndicX+8, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
                 end
@@ -824,13 +909,11 @@ local function DrawNowPlaying()
     end
 
     if CurrentDataSpotify == nil then return end
-
     switch(ui_get(elements.IndicType)) {
 
         Spotify = function()
             SpotifyScaleX = sx/MenuScaleX
             SpotifyScaleY = sy/MenuScaleY
-            --client.log(SpotifyScaleX)
             if ui_get(elements.CustomLayoutType) == "Left" and ui_get(elements.ArtButton) then
                 surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba)
                 surface.draw_filled_rect(SpotifyIndicX-ArtScaleX, SpotifyIndicY, SpotifyScaleY, SpotifyScaleY, 18, 18, 18, 255)
@@ -848,7 +931,6 @@ local function DrawNowPlaying()
             if ui_get(elements.BackgroundGradientSwitch) then
                 surface.draw_filled_gradient_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, (SpotifyScaleY/20*19), br1, bg1, bb1, ba1, br2, bg2, bb2, ba2, true)
             end
-
             if not ui_get(elements.ProgressGradientSwitch) then
                 surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY+(SpotifyScaleY/20*19), CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*adaptivesize, (SpotifyScaleY/20*1), r, g, b, a)
             else
@@ -868,6 +950,7 @@ local function DrawNowPlaying()
             elseif not CurrentDataSpotify.is_playing then
                 textmeasurement = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
             end
+
             renderer.gradient(SpotifyIndicX, SpotifyIndicY, textmeasurement, 32, 22, 22, 22, 255, 22, 22, 22, 10, true)
             renderer.rectangle(SpotifyIndicX, SpotifyIndicY, 2, 32, r, g, b, a)
             renderer.gradient(SpotifyIndicX, SpotifyIndicY, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*textmeasurement, 2, r, g, b, a, r, g, b, 0, true)
@@ -915,6 +998,7 @@ function OnFrame()
         UpdateInf()
         last_update = client.unix_time()
         UpdateCount = UpdateCount + 1
+        
         ui_set(elements.SessionUpdates, "Total updates this session: " .. UpdateCount)
         ui_set(elements.TotalErrors, "Errors this session: " .. TotalErrors)
         ui_set(elements.SpreeErrors, "Errors this spree: " .. ErrorSpree)
@@ -923,12 +1007,12 @@ function OnFrame()
             Authed = false
             ErrorSpree = 0
             ShowMenuElements()
+            GetApiToken()
 
             if AuthStatus == "TOKEN" then
                 ui_set(elements.Connected, "> Please play a song before authorising. If you are listening then your token has expired.")
             end
         end
-
     end
 
     if client.unix_time() > last_update_error + ui_get(elements.ErrorRate) then
@@ -944,6 +1028,10 @@ function OnFrame()
 
         if ui_get(elements.ControlSwitch) then
             MusicControls()
+        end
+
+        if ui_get(elements.DebugInfo) then
+            ui_set(elements.SpotifyPosition, "Position(x - x2(width), y): " .. SpotifyIndicX .. " - " .. SpotifyIndicX2 .. "(" .. adaptivesize .. "), " .. SpotifyIndicY .. "y")
         end
 
         if ui_get(elements.IndicType) == "Spotify" then CustomLayout() end
@@ -975,10 +1063,10 @@ ui_set_callback(elements.CustomColors, ShowMenuElements)
 ui_set_callback(elements.MenuSize, ChangeMenuSize)
 
 client.set_event_callback("paint_ui", OnFrame)
-
 client.set_event_callback('shutdown', function()
     database_write("previous_posX", SpotifyIndicX)
     database_write("previous_posY", SpotifyIndicY)
     database_write("previous_size", SelectedSize)
     database_write("StoredKey", apikey)
+    database_write("StoredKey2", refreshkey)
 end)
