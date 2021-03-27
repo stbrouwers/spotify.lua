@@ -359,6 +359,8 @@ local elements = {
         CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Left", "Right"),
         SongDurationToggle = ui_new_checkbox("MISC", "Miscellaneous", "Song duration"),
 
+    DisplayConnected = ui_new_checkbox("MISC", "Miscellaneous", "Display connected account"),
+    
     CustomColors = ui_new_checkbox("MISC", "Miscellaneous", "Custom colors"),
         ProgressGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient progress bar"),
         BackgroundGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient background"),
@@ -435,6 +437,7 @@ function ShowMenuElements()
         ui_set_visible(elements.ResetAuth, true)
 
         if ui_get(elements.IndicType) == "Spotify" then
+            ui_set_visible(elements.DisplayConnected, false)
             ui_set_visible(elements.ArtButton, true)
             ui_set_visible(elements.MinimumWidth, true)
             ui_set_visible(elements.CustomLayoutType, ui_get(elements.ArtButton))
@@ -499,6 +502,7 @@ function ShowMenuElements()
             end
             
         elseif ui_get(elements.IndicType) == "Minimal" then
+            ui_set_visible(elements.DisplayConnected, true)
             ui_set_visible(elements.MinimumWidth, false)
             ui_set_visible(elements.ArtButton, false)
             ui_set_visible(elements.ProgressGradientSwitch, false)
@@ -939,8 +943,13 @@ local function DrawNowPlaying()
         end,
 
         Minimal = function()
-            SpotifyScaleX = 150
-            SpotifyScaleY = 30
+            if ui_get(elements.DisplayConnected) then
+                SpotifyScaleX = 150
+                SpotifyScaleY = 30
+            else
+                SpotifyScaleX = 150
+                SpotifyScaleY = 15
+            end
             songartist = renderer.measure_text("b", "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)+10
             usrnm = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
             if CurrentDataSpotify.is_playing and songartist > usrnm then
@@ -951,15 +960,23 @@ local function DrawNowPlaying()
                 textmeasurement = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
             end
 
-            renderer.gradient(SpotifyIndicX, SpotifyIndicY, textmeasurement, 32, 22, 22, 22, 255, 22, 22, 22, 10, true)
-            renderer.rectangle(SpotifyIndicX, SpotifyIndicY, 2, 32, r, g, b, a)
+            renderer.gradient(SpotifyIndicX, SpotifyIndicY, textmeasurement, SpotifyScaleY+2, 22, 22, 22, 255, 22, 22, 22, 10, true)
+            renderer.rectangle(SpotifyIndicX, SpotifyIndicY, 2, SpotifyScaleY+2, r, g, b, a)
             renderer.gradient(SpotifyIndicX, SpotifyIndicY, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*textmeasurement, 2, r, g, b, a, r, g, b, 0, true)
-            renderer.gradient(SpotifyIndicX, SpotifyIndicY+30, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*textmeasurement, 2, r, g, b, a, r, g, b, 0, true)
-            renderer.text(SpotifyIndicX+5, SpotifyIndicY+5, 255, 255, 255, 255, "b", 0, "Connected to: "..spotidata.display_name)
-            if CurrentDataSpotify.is_playing then
-                renderer.text(SpotifyIndicX+5, SpotifyIndicY+15, 255, 255, 255, 255, "b", 0, "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)
+            renderer.gradient(SpotifyIndicX, SpotifyIndicY+SpotifyScaleY, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*textmeasurement, 2, r, g, b, a, r, g, b, 0, true)
+            if ui_get(elements.DisplayConnected) then
+                renderer.text(SpotifyIndicX+5, SpotifyIndicY+5, 255, 255, 255, 255, "b", 0, "Connected to: "..spotidata.display_name)
+                if CurrentDataSpotify.is_playing then
+                    renderer.text(SpotifyIndicX+5, SpotifyIndicY+15, 255, 255, 255, 255, "b", 0, "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)
+                else
+                    renderer.text(SpotifyIndicX+5, SpotifyIndicY+15, 255, 255, 255, 255, "b", 0, "Paused")
+                end
             else
-                renderer.text(SpotifyIndicX+5, SpotifyIndicY+15, 255, 255, 255, 255, "b", 0, "Paused")
+                if CurrentDataSpotify.is_playing then
+                    renderer.text(SpotifyIndicX+5, SpotifyIndicY+2, 255, 255, 255, 255, "b", 0, "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)
+                else
+                    renderer.text(SpotifyIndicX+5, SpotifyIndicY+2, 255, 255, 255, 255, "b", 0, "Paused")
+                end
             end
         end
     }
