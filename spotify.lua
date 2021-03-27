@@ -17,21 +17,28 @@ local ui_new_combobox = ui.new_combobox
 local ui_new_slider = ui.new_slider
 local ui_new_color_picker = ui.new_color_picker
 local ui_new_hotkey = ui.new_hotkey
+local ui_menu_position = ui.menu_position
 local last_update = client.unix_time()
 local last_update_controls = client.unix_time()
+local last_update_error = client.unix_time()
 local sx, sy = client.screen_size()
 MenuScaleX = 4.8
 MenuScaleY = 10.8
 ScaleTitle = 41.54
 ScaleArtist = 63.53
+ScaleDuration = 57
 local TitleFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
 local ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 0x010)
+local DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 600, 0x010)
+
 
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
 
 local SpotifyIndicX = database_read("previous_posX") or 0
 local SpotifyIndicY = database_read("previous_posY") or 1020
 local SizePerc = database_read("previous_size") or 30
+local apikey = database_read("StoredKey") or ""
+
 
 local native_GetClipboardTextCount = vtable_bind("vgui2.dll", "VGUI_System010", 7, "int(__thiscall*)(void*)")
 local native_GetClipboardText = vtable_bind("vgui2.dll", "VGUI_System010", 11, "int(__thiscall*)(void*, int, const char*, int)")
@@ -54,6 +61,7 @@ dragging = false
 Authed = false
 CornerReady = false
 ControlCheck = false
+AuthClicked = false
 
 limitval = 0
 indicxcomp = -0.1
@@ -63,16 +71,21 @@ ArtScaleX, ArtScaleY = SpotifyScaleY, SpotifyScaleY
 UpdateCount = 0
 ClickSpree = 0
 ClickSpreeTime = 1
+TotalErrors = 0
+ErrorSpree = 0
+
 
 AuthStatus = "> Not connected"
-apikey = ""
 deviceid = ""
 UserName = "-"
 SongName = "-"
 ArtistName = "-"
 SongProgression = "-"
 SongLength = "-"
+TotalDuration = "-"
+ProgressDuration = "-"
 AuthURL = "https://developer.spotify.com/console/get-users-currently-playing-track/"
+RefreshURL = "https://accounts.spotify.com/authorize?response_type=code&client_id=b94232a2e5844ac2a1ea2ef9bd8e99a4&scope=user-read-private%20user-read-playback-position%20user-read-recently-played%20user-modify-playback-state%20user-read-playback-state%20user-read-currently-playing&redirect_uri=https%3A%2F%2Fspotify.stbrouwers.cc/callback"
 
 if database_read("previous_posX") == nil then
     database_write("previous_posX", SpotifyIndicX)
@@ -94,7 +107,25 @@ switch = function(check)
     end
 end
 
+local msConversion = function(b)
+    local c=math.floor(b/1000)
+    local d=math.floor(c/3600)
+    local c=c-d*3600;
+    local e=math.floor(c/60)
+    local c='00'..c-e*60;
+    local c=c:sub(#c-1)
+    if d>0 then 
+        local e=''..e;
+        local e=('00'..e):sub(#e+1)
+        return d..':'..e..':'..c 
+    else 
+        return e..':'..c 
+    end 
+end
+
+
 local function GetToken() 
+    if AuthClicked == false then return end
     local js = panorama.loadstring([[
         return {
           open_url: function(url){
@@ -106,7 +137,7 @@ local function GetToken()
 end
 
 function Auth() 
-    apikey = CP()
+    if AuthClicked == true then apikey = CP() end
     if apikey == nil then GetToken() return end
         http.get("https://api.spotify.com/v1/me?&access_token=" .. apikey, function(success, response)
             ConnectionStatus = response.status
@@ -127,7 +158,7 @@ function Auth()
                 UpdateElements()
             end)
 end
-
+Auth()
 
 function DAuth() 
         if not ConnectionStatus then return end
@@ -136,18 +167,21 @@ function DAuth()
         end
 
         if ConnectionStatus == 403 then
-            Authed = false
             AuthStatus = "FORBIDDEN"
+            ErrorSpree = ErrorSpree + 1
+            TotalErrors = TotalErrors + 1
         end
 
         if ConnectionStatus == 429 then
-            Authed = false
             AuthStatus = "RATE"
+            ErrorSpree = ErrorSpree + 1
+            TotalErrors = TotalErrors + 1
         end
 
         if ConnectionStatus == 503 then
-            Authed = false
             AuthStatus = "APIFAIL"
+            ErrorSpree = ErrorSpree + 1
+            TotalErrors = TotalErrors + 1
         end
 
     ShowMenuElements()
@@ -166,7 +200,8 @@ function UpdateInf()
     http.get("https://api.spotify.com/v1/me/player?access_token=" .. apikey, function(success, response)
         if not success or response.status ~= 200 then
             AuthStatus = "TOKEN"
-            Authed = false
+            ErrorSpree = ErrorSpree + 1
+            TotalErrors = TotalErrors + 1
             return 
         end
             CurrentDataSpotify = json.parse(response.body)
@@ -183,6 +218,9 @@ function UpdateInf()
             end
             SongLength = CurrentDataSpotify.item.duration_ms / 1000
             SongProgression = CurrentDataSpotify.progress_ms / 1000
+
+            TotalDuration = msConversion(CurrentDataSpotify.item.duration_ms)
+            ProgressDuration = msConversion(CurrentDataSpotify.progress_ms)
             ThumbnailUrl = CurrentDataSpotify.item.album.images[1].url
             http.get(ThumbnailUrl, function(success, response)
                 if not success or response.status ~= 200 then
@@ -207,15 +245,11 @@ function PlayPause()
     if CurrentDataSpotify.is_playing then
 
         http.put("https://api.spotify.com/v1/me/player/pause?device_id=" .. deviceid, options, function(s, r)
-            print(r.status .. " " .. r.status_message)
-            print(r.body)
             UpdateCount = UpdateCount + 1
             
         end)
     else
         http.put("https://api.spotify.com/v1/me/player/play?device_id=" .. deviceid, options, function(s, r)
-            print(r.status .. " " .. r.status_message)
-            print(r.body)
             UpdateCount = UpdateCount + 1
         end)   
     end
@@ -234,8 +268,6 @@ function NextTrack()
     }
 
     http.post("https://api.spotify.com/v1/me/player/next?device_id" .. deviceid, options, function(s, r)
-        print(r.status .. " " .. r.status_message)
-        print(r.body)
         UpdateCount = UpdateCount + 1
     end)   
     UpdateInf()
@@ -253,17 +285,26 @@ function PreviousTrack()
     }
 
     http.post("https://api.spotify.com/v1/me/player/previous?device_id" .. deviceid, options, function(s, r)
-        print(r.status .. " " .. r.status_message)
-        print(r.body)
         UpdateCount = UpdateCount + 1
     end)   
     UpdateInf()
 end
 
+function RefreshToken()
+
+    local options = {
+        ["Accept"] = "application/json",
+        ["Content-Type"] = "application/x-www-form-urlencoded",
+        ["Authorization"] = "Bearer " .. apikey,
+    }
+
+end
+
 local elements = {
     Connected = ui_new_label("MISC", "Miscellaneous", AuthStatus),
-    AuthButton = ui_new_button("MISC", "Miscellaneous", "Authorize", Auth),
+    AuthButton = ui_new_button("MISC", "Miscellaneous", "Authorize", function() AuthClicked = true Auth() end),
     IndicType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Spotify", "Minimal"),
+    MenuSize = ui_new_slider("MISC", "Miscellaneous", "Scale", 50, 150, 100, true, "%"),
     MinimumWidth = ui_new_slider("MISC", "Miscellaneous", "Minimum box width", 199, 600, 400, true, "px", 1, { [199] = "Auto"}),
     DebugInfo = ui_new_checkbox("MISC", "Miscellaneous", "Debug info"),
     NowPlaying = ui_new_label("MISC", "Miscellaneous", "Now playing:" .. SongName),
@@ -272,9 +313,15 @@ local elements = {
     UpdateRate = ui_new_slider("MISC", "Miscellaneous", "UpdateRate", 0.5, 5, 1, true, "s"),
     RateLimitWarning = ui_new_label("MISC", "Miscellaneous", "WARNING: using <1s updaterate might get you ratelimited"),
     SessionUpdates = ui_new_label("MISC", "Miscellaneous", "Total updates this session: " .. UpdateCount),
+    TotalErrors = ui_new_label("MISC", "Miscellaneous", "Errors this session: " .. TotalErrors),
+    SpreeErrors = ui_new_label("MISC", "Miscellaneous", "Errors this spree: " .. ErrorSpree),
+    RecentError = ui_new_label("MISC", "Miscellaneous", "Most recent error: " .. "-"),
+    MaxErrors = ui_new_slider("MISC", "Miscellaneous", "Max errors", 1, 20, 5, true, "x"),
+    ErrorRate = ui_new_slider("MISC", "Miscellaneous", "within", 5, 300, 30, true, "s"),
     ResetKey = ui_new_button("MISC", "Miscellaneous", "Reset", ResetAPI),
     ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Cover art"),
     CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Left", "Right"),
+    SongDurationToggle = ui_new_checkbox("MISC", "Miscellaneous", "Song duration"),
     CustomColors = ui_new_checkbox("MISC", "Miscellaneous", "Custom colors"),
     ProgressGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient progress bar"),
     BackgroundGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient background"),
@@ -300,8 +347,7 @@ local elements = {
     PlayPause = ui_new_hotkey("MISC", "Miscellaneous", "  - Play/Pause", false),
     SkipSong = ui_new_hotkey("MISC", "Miscellaneous", "  - Skip song", false),
     PreviousSong = ui_new_hotkey("MISC", "Miscellaneous", "  - Previous song", false),
-    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
-    MenuSize = ui_new_slider("MISC", "Miscellaneous", "Scale", 33, 167, 100, true, "%")
+    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag")
 }
 
 ui_set(elements.CustomLayoutType, "Left")
@@ -341,13 +387,14 @@ function ShowMenuElements()
         ui_set_visible(elements.ControlSwitch, true)
         ui_set_visible(elements.Clantag, true)
         ui_set_visible(elements.MenuSize, true)
+        ui_set_visible(elements.SongDurationToggle, true)
+
 
         
         if ui_get(elements.IndicType) == "Spotify" then
             ui_set_visible(elements.ArtButton, true)
             ui_set_visible(elements.MinimumWidth, true)
             ui_set_visible(elements.CustomLayoutType, ui_get(elements.ArtButton))
-
 
             if ui_get(elements.CustomColors) then
                 ui_set_visible(elements.ProgressGradientSwitch, true)
@@ -427,6 +474,12 @@ function ShowMenuElements()
             ui_set_visible(elements.ProgressGradient2, false)
             ui_set_visible(elements.GradientColour, false)
             ui_set_visible(elements.LabelGradientColour, false)
+            ui_set_visible(elements.MenuSize, false)
+            ui_set(elements.CustomLayoutType, "Left")
+            ui_set_visible(elements.CustomLayoutType, false)
+            ui_set_visible(elements.SongDurationToggle, false)
+
+
 
             if ui_get(elements.CustomColors) then
                 ui_set_visible(elements.GradientColour, true)
@@ -489,6 +542,11 @@ function ShowMenuElements()
             ui_set_visible(elements.UpdateRate, true)
             ui_set_visible(elements.RateLimitWarning, ui_get(elements.UpdateRate) <= 0.9)
             ui_set_visible(elements.SessionUpdates, true)
+            ui_set_visible(elements.TotalErrors, true)
+            ui_set_visible(elements.SpreeErrors, true)
+            ui_set_visible(elements.RecentError, true)
+            ui_set_visible(elements.ErrorRate, true)
+            ui_set_visible(elements.MaxErrors, true)
         else
             ui_set_visible(elements.NowPlaying, false)
             ui_set_visible(elements.Artist, false)
@@ -496,6 +554,11 @@ function ShowMenuElements()
             ui_set_visible(elements.UpdateRate, false)
             ui_set_visible(elements.RateLimitWarning, false)
             ui_set_visible(elements.SessionUpdates, false)
+            ui_set_visible(elements.TotalErrors, false)
+            ui_set_visible(elements.SpreeErrors, false)
+            ui_set_visible(elements.RecentError, false)
+            ui_set_visible(elements.ErrorRate, false)
+            ui_set_visible(elements.MaxErrors, false)
         end
 
     elseif ui_get(MainCheckbox) and not Authed then
@@ -563,19 +626,22 @@ function UpdateElements()
 
         TOKEN = function()
             if ui_get(elements.Connected) == "> Please put your API key into your clipboard (Invalid token)" then return end
-            ui_set(elements.Connected, "> Please play a song before authorising. If you are listening then your token has expired.")
+            ui_set(elements.RecentError, "Most recent error: " .. "000, REJECTED")
         end,
 
         FORBIDDEN = function()
             ui_set(elements.Connected, "> The server has dropped your request. Reason unknown")
+            ui_set(elements.RecentError, "Most recent error: " .. "403, FORBIDDEN")
         end,
 
         RATE = function()
             ui_set(elements.Connected, "> You've reached the hourly limit of requests. Contact the lua dev")
+            ui_set(elements.RecentError, "Most recent error: " .. "429, RATELIMIT")
         end,
 
         APIFAIL = function()
             ui_set(elements.Connected, "> An issue on Spotify's end has occurred. Check their status page")
+            ui_set(elements.RecentError, "Most recent error: " .. "503, APIFAIL")
         end
     }
 
@@ -707,6 +773,10 @@ local function CustomLayout()
                 else end
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+
+                if ui_get(elements.SongDurationToggle) then
+                    surface.draw_text(SpotifyIndicX+adaptivesize-(SpotifyScaleY/100)*85, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
+                end
             end,
 
             Right = function()
@@ -721,23 +791,18 @@ local function CustomLayout()
                     else end
                 surface.draw_text(SpotifyIndicX + adaptivesize - titlex + (SpotifyScaleY/100*40), SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
                 surface.draw_text(SpotifyIndicX + adaptivesize - artistx + (SpotifyScaleY/100*40), SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+                if ui_get(elements.SongDurationToggle) then
+                    surface.draw_text(SpotifyIndicX+adaptivesize-(SpotifyScaleY/100)*60, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
+                end
             end
-            
---            Top = function()
---                if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX-ArtScaleX+1, SpotifyIndicY, ArtScaleX, ArtScaleY) else end
---                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
---                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
---            end,
-
---            Behind = function()
---                if ui_get(elements.ArtButton) and Thumbnail ~= nil then Thumbnail:draw(SpotifyIndicX-ArtScaleX+1, SpotifyIndicY, ArtScaleX, ArtScaleY) else end
---                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+22, tr1, tg1, tb1, ta1, TitleFont, SongName)
---                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
---            end
         }
     else 
         surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
         surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
+
+        if ui_get(elements.SongDurationToggle) then
+            surface.draw_text(SpotifyIndicX+adaptivesize-(SpotifyScaleY/100)*60, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
+        end
     end
 end
         
@@ -818,14 +883,17 @@ local function DrawNowPlaying()
 end
 
 function ChangeMenuSize()
-    client.log(ui_get(elements.MenuSize))
     MenuScaleChange = 2 - ui_get(elements.MenuSize)/100
     MenuScaleX = 4.8 * MenuScaleChange
     MenuScaleY = 10.8 * MenuScaleChange
     ScaleTitle = 41.54 * MenuScaleChange
     ScaleArtist = 63.53 * MenuScaleChange
+    ScaleDuration = 54 * MenuScaleChange
     TitleFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
     ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 0x010)
+    DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 600, 0x010)
+    local minwidth = ui_get(elements.MinimumWidth) 
+    ui_set(elements.MinimumWidth, ui_get(elements.MenuSize)/100 * 400) 
 end
 
 local duration = 70
@@ -848,17 +916,45 @@ function OnFrame()
         last_update = client.unix_time()
         UpdateCount = UpdateCount + 1
         ui_set(elements.SessionUpdates, "Total updates this session: " .. UpdateCount)
+        ui_set(elements.TotalErrors, "Errors this session: " .. TotalErrors)
+        ui_set(elements.SpreeErrors, "Errors this spree: " .. ErrorSpree)
+
+        if ErrorSpree == ui_get(elements.MaxErrors) or ErrorSpree >= ui_get(elements.MaxErrors) then
+            Authed = false
+            ErrorSpree = 0
+            ShowMenuElements()
+
+            if AuthStatus == "TOKEN" then
+                ui_set(elements.Connected, "> Please play a song before authorising. If you are listening then your token has expired.")
+            end
+        end
+
+    end
+
+    if client.unix_time() > last_update_error + ui_get(elements.ErrorRate) then
+        ErrorSpree = 0
+        ui_set(elements.SpreeErrors,  "Errors this spree: " .. ErrorSpree)
+        last_update_error = client.unix_time()
     end
 
     if ui_get(MainCheckbox) and Authed then
         AdjustSize()
         DrawNowPlaying()
         ShowMenuElements()
-        MusicControls()
 
+        if ui_get(elements.ControlSwitch) then
+            MusicControls()
+        end
 
         if ui_get(elements.IndicType) == "Spotify" then CustomLayout() end
         if ui_get(elements.Clantag) then SpotifyClantag() end
+
+        local LClick = client.key_state(0x01)
+        local mousepos = { ui.mouse_position() }
+        rawmouseposX = mousepos[1]
+        rawmouseposY = mousepos[2]
+        mouseposX = mousepos[1] - SpotifyIndicX
+        mouseposY = mousepos[2] - SpotifyIndicY
         if ui.is_menu_open() then Dragging(); UpdateElements() end
 
         if ui_get(elements.ControlSwitch) then
@@ -868,13 +964,6 @@ function OnFrame()
                 ControlCheck = false
             end
         end
-
-        local LClick = client.key_state(0x01)
-        local mousepos = { ui.mouse_position() }
-        rawmouseposX = mousepos[1]
-        rawmouseposY = mousepos[2]
-        mouseposX = mousepos[1] - SpotifyIndicX
-        mouseposY = mousepos[2] - SpotifyIndicY
     end
 end
 
@@ -891,4 +980,5 @@ client.set_event_callback('shutdown', function()
     database_write("previous_posX", SpotifyIndicX)
     database_write("previous_posY", SpotifyIndicY)
     database_write("previous_size", SelectedSize)
+    database_write("StoredKey", apikey)
 end)
