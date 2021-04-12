@@ -21,6 +21,9 @@ local ui_menu_position = ui.menu_position
 local last_update = client.unix_time()
 local last_update_controls = client.unix_time()
 local last_update_error = client.unix_time()
+local last_update_volume = globals.tickcount()
+local last_update_volume_press = globals.tickcount()
+local last_update_volume_set = globals.tickcount()
 local sx, sy = client.screen_size()
 
 MenuScaleX = 4.8
@@ -31,6 +34,7 @@ ScaleDuration = 57
 local TitleFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
 local ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 0x010)
 local DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 600, 0x010)
+local VolumeFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
 
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
 
@@ -60,6 +64,16 @@ CornerReady = false
 ControlCheck = false
 AuthClicked = false
 SongChanged = false
+VolumeMax = false
+VolumeMin = false
+VolumeCheck = false
+FirstPress = false
+RunOnceCheck = false
+StopSpamming = false
+SetCheck = true
+forkinCock = true
+bool = true
+gropeTits = true
 
 limitval = 0
 indicxcomp = -0.1
@@ -74,7 +88,9 @@ ClickSpreeTime = 1
 TotalErrors = 0
 ErrorSpree = 0
 NewApiKeyRequest = 0
-
+AlteredVolume = 0
+NewVolume = 0
+sectionPrev = 0
 
 AuthStatus = "> Not connected"
 deviceid = ""
@@ -232,6 +248,12 @@ function UpdateInf()
         end
             CurrentDataSpotify = json.parse(response.body)
             deviceid = CurrentDataSpotify.device.id
+
+            if RunOnceCheck == false then
+                NewVolume = CurrentDataSpotify.device.volume_percent
+                RunOnceCheck = true
+            end
+
             if CurrentDataSpotify.is_playing and CurrentDataSpotify.currently_playing_type == "episode" then
                 SongName = "Podcast"
                 ArtistName = ""
@@ -320,27 +342,19 @@ function PreviousTrack()
     UpdateInf()
 end
 
-function RefreshToken()
-
-    local options = {
-        ["Accept"] = "application/json",
-        ["Content-Type"] = "application/x-www-form-urlencoded",
-        ["Authorization"] = "Bearer " .. apikey,
-    }
-
-end
-
 local elements = {
     Connected = ui_new_label("MISC", "Miscellaneous", AuthStatus),
     AuthButton = ui_new_button("MISC", "Miscellaneous", "Authorize", function() AuthClicked = true Auth() end),
     IndicType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Spotify", "Minimal"),
     MenuSize = ui_new_slider("MISC", "Miscellaneous", "Scale", 50, 150, 100, true, "%"),
+    WidthLock = ui_new_label("MISC", "Miscellaneous", "⭥                        [LINKED]                         ⭥"),
     MinimumWidth = ui_new_slider("MISC", "Miscellaneous", "Minimum box width", 199, 600, 400, true, "px", 1, { [199] = "Auto"}),
     
     DebugInfo = ui_new_checkbox("MISC", "Miscellaneous", "Debug info"),
         NowPlaying = ui_new_label("MISC", "Miscellaneous", "Now playing:" .. SongName),
         Artist = ui_new_label("MISC", "Miscellaneous", "By:" .. ArtistName),
         SongDuration = ui_new_label("MISC", "Miscellaneous", SongProgression .. SongLength),
+        VolumeLabel = ui_new_label("MISC", "Miscellaneous", "NewVolume: " .. NewVolume),
         UpdateRate = ui_new_slider("MISC", "Miscellaneous", "Update rate", 0.5, 5, 1, true, "s"),
         RateLimitWarning = ui_new_label("MISC", "Miscellaneous", "WARNING: using <1s updaterate might get you ratelimited"),
         SessionUpdates = ui_new_label("MISC", "Miscellaneous", "Total updates this session: " .. UpdateCount),
@@ -349,11 +363,12 @@ local elements = {
         RecentError = ui_new_label("MISC", "Miscellaneous", "Most recent error: " .. "-"),
         MaxErrors = ui_new_slider("MISC", "Miscellaneous", "Max errors", 1, 20, 5, true, "x"),
         ErrorRate = ui_new_slider("MISC", "Miscellaneous", "within", 5, 300, 30, true, "s"),
+        FirstPressAmount = ui_new_slider("MISC", "Miscellaneous", "First press amount", 1, 20, 5, true, "%"),
+        VolumeTickSpeed = ui_new_slider("MISC", "Miscellaneous", "Volume tick speed", 1, 64, 2, true, "tc"),
+        VolumeTickAmount = ui_new_slider("MISC", "Miscellaneous", "Volume tick amount", 1, 10, 1, true, "%"),
         SpotifyPosition = ui_new_label("MISC", "Miscellaneous", "Position(x - x2(width), y): " .. SpotifyIndicX .. " - " .. SpotifyIndicX2 .. "(" .. adaptivesize .. "), " .. SpotifyIndicY .. "y"),
         AddError = ui_new_button("MISC", "Miscellaneous", "Add an error", function() AuthStatus = "TOKEN" ErrorSpree = ErrorSpree + 1 TotalErrors = TotalErrors + 1 end),
         ForceReflowButton = ui_new_button("MISC", "Miscellaneous", "Force element reflow", function() ForceReflow() end),
-
-
 
     ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Cover art"),
         CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Left", "Right"),
@@ -383,21 +398,45 @@ local elements = {
         
     ControlSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Controls"),
         SmartControlSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Smart controls"),
+        SmartVolumeSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Smart volume"),
             SmartControls = ui_new_hotkey("MISC", "Miscellaneous", "  - Smart Controls", true),
+            
 
         PlayPause = ui_new_hotkey("MISC", "Miscellaneous", "  - Play/Pause", false),
         SkipSong = ui_new_hotkey("MISC", "Miscellaneous", "  - Skip song", false),
         PreviousSong = ui_new_hotkey("MISC", "Miscellaneous", "  - Previous song", false),
+        IncreaseVolume = ui_new_hotkey("MISC", "Miscellaneous", "  - Volume up", false),
+        DecreaseVolume = ui_new_hotkey("MISC", "Miscellaneous", "  - Volume down", false),
+        AdaptiveVolume = ui_new_slider("MISC", "Miscellaneous", "Decrease volume by % on voicechat", 0, 100, "off", true, "%", 1, { [0] = "off", [100] = "mute"}),
+
 
     Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
 }
 
+function ChangeVolume() 
+    if stopRequest then return end
+
+    local options = {
+        headers = {
+            ["Accept"] = "application/json",
+            ["Content-Type"] = "application/json",
+            ["Authorization"] = "Bearer " .. apikey,
+            ["Content-length"] = 0
+        }
+    }
+
+    http.put("https://api.spotify.com/v1/me/player/volume?volume_percent=" .. NewVolume .. "&device_id=" .. deviceid, options, function(s, r)
+        UpdateCount = UpdateCount + 1
+    end)
+    stopRequest = true
+    StopSpamming = false
+    SetCheck = true
+end 
+
 function setConnected(value)
     ui_set(elements.Connected, value)
 end
-
-ui_set(elements.CustomLayoutType, "Left")
 
 local startpos = {
     DRegionx = 0, DRegiony = 0,
@@ -439,6 +478,7 @@ function ShowMenuElements()
         if ui_get(elements.IndicType) == "Spotify" then
             ui_set_visible(elements.DisplayConnected, false)
             ui_set_visible(elements.ArtButton, true)
+            ui_set_visible(elements.WidthLock, ShiftClick)
             ui_set_visible(elements.MinimumWidth, true)
             ui_set_visible(elements.CustomLayoutType, ui_get(elements.ArtButton))
 
@@ -524,7 +564,6 @@ function ShowMenuElements()
             ui_set_visible(elements.GradientColour, false)
             ui_set_visible(elements.LabelGradientColour, false)
             ui_set_visible(elements.MenuSize, false)
-            ui_set(elements.CustomLayoutType, "Left")
             ui_set_visible(elements.CustomLayoutType, false)
             ui_set_visible(elements.SongDurationToggle, false)
 
@@ -561,6 +600,9 @@ function ShowMenuElements()
                                                                                     
         if ui_get(elements.ControlSwitch) then
             ui_set_visible(elements.SmartControlSwitch, true)
+            ui_set_visible(elements.SmartVolumeSwitch, false)
+            ui_set_visible(elements.IncreaseVolume, true)
+            ui_set_visible(elements.DecreaseVolume, true)
             if ui_get(elements.SmartControlSwitch) then
                 ui_set_visible(elements.SmartControls, true)
                 ui_set_visible(elements.SkipSong, false)
@@ -572,12 +614,23 @@ function ShowMenuElements()
                 ui_set_visible(elements.PreviousSong, true)
                 ui_set_visible(elements.PlayPause, true)
             end
+
+            if ui_get(elements.SmartVolumeSwitch) then
+                ui_set_visible(elements.AdaptiveVolume, false)
+            else
+                ui_set_visible(elements.AdaptiveVolume, false)
+            end
+
         else
             ui_set_visible(elements.SmartControlSwitch, false)
+            ui_set_visible(elements.SmartVolumeSwitch, false)
             ui_set_visible(elements.SmartControls, false)
             ui_set_visible(elements.SkipSong, false)
             ui_set_visible(elements.PreviousSong, false)
             ui_set_visible(elements.PlayPause, false)
+            ui_set_visible(elements.IncreaseVolume, false)
+            ui_set_visible(elements.DecreaseVolume, false)
+            ui_set_visible(elements.AdaptiveVolume, false)
         end
 
         ui_set_visible(elements.DebugInfo, Authed and UserName == "stbrouwers" or Authed and UserName == "slxyx" or Authed and UserName == "Encoded" or Authed and UserName == "22fzreq5auy5njejk6fzp7nhy")
@@ -597,6 +650,10 @@ function ShowMenuElements()
             ui_set_visible(elements.AddError, true)
             ui_set_visible(elements.SpotifyPosition, true)
             ui_set_visible(elements.ForceReflowButton, true)
+            ui_set_visible(elements.VolumeTickSpeed, true)
+            ui_set_visible(elements.VolumeTickAmount, true)
+            ui_set_visible(elements.FirstPressAmount, true)
+            ui_set_visible(elements.VolumeLabel, true)
         else
             ui_set_visible(elements.NowPlaying, false)
             ui_set_visible(elements.Artist, false)
@@ -612,6 +669,10 @@ function ShowMenuElements()
             ui_set_visible(elements.AddError, false)
             ui_set_visible(elements.SpotifyPosition, false)
             ui_set_visible(elements.ForceReflowButton, false)
+            ui_set_visible(elements.VolumeTickSpeed, false)
+            ui_set_visible(elements.VolumeTickAmount, false)
+            ui_set_visible(elements.FirstPressAmount, false)
+            ui_set_visible(elements.VolumeLabel, false)
         end
 
     elseif ui_get(MainCheckbox) and not Authed then
@@ -690,6 +751,51 @@ function MusicControls()
         if ClickSpree >= 3.1 then ClickSpree = 0 PreviousTrack() end
         last_update_controls = client.unix_time()
         ClickSpreeTime = 0.5
+    end
+end
+
+function gaySexgamer()
+    if forkinCock then
+        analBuggery = globals.tickcount() % 64
+        analGaping = globals.tickcount() % 64
+        forkinCock = false
+    end
+    if globals.tickcount() % 64 == analGaping and bool then
+        gropeTits = true
+    end
+    if gropeTits then
+        analBuggery = globals.tickcount() % 64
+    end
+    if ui.get(elements.IncreaseVolume) or ui_get(elements.DecreaseVolume) then bool = false else bool = true end
+    if not bool then
+        molestingInfants = true
+        gropeTits = false
+        analGaping = (globals.tickcount() % 64)-2
+    end
+end
+
+function VolumeHandler() 
+    if ui_get(elements.IncreaseVolume) or ui_get(elements.DecreaseVolume) then
+        if FirstPress then
+            if VolumeCheck == false then 
+                if ui_get(elements.IncreaseVolume) and not ui_get(elements.DecreaseVolume) then
+                    NewVolume = NewVolume + ui_get(elements.FirstPressAmount)
+                elseif not ui_get(elements.IncreaseVolume) and ui_get(elements.DecreaseVolume) then
+                    NewVolume = NewVolume - ui_get(elements.FirstPressAmount)
+                end
+            end
+        end
+        if NewVolume >= 100 then 
+            NewVolume = 100
+        elseif NewVolume <= 0 then
+            NewVolume = 0
+        end 
+    end
+    if globals.tickcount() % 64 == analBuggery and not ui_get(elements.IncreaseVolume) and not ui_get(elements.DecreaseVolume) and molestingInfants then
+        molestingInfants = false
+        stopRequest = false
+        NiggerSex = false
+        ChangeVolume() 
     end
 end
 
@@ -861,8 +967,8 @@ local function CustomLayout()
                     end
                 else end
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
 
+                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
                 if ui_get(elements.SongDurationToggle) then
                     surface.draw_text(SpotifyIndicX+adaptivesize-(SpotifyScaleY/100)*85, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
                 end
@@ -913,6 +1019,10 @@ local function DrawNowPlaying()
     end
 
     if CurrentDataSpotify == nil then return end
+
+    if NiggerSex == true then
+        surface.draw_text(10,10, 255, 255, 255, 255, DurationFont, "Volume: " .. NewVolume .. "%")
+    end
     switch(ui_get(elements.IndicType)) {
 
         Spotify = function()
@@ -993,16 +1103,19 @@ function ChangeMenuSize()
     ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 0x010)
     DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 600, 0x010)
     local minwidth = ui_get(elements.MinimumWidth) 
-    ui_set(elements.MinimumWidth, ui_get(elements.MenuSize)/100 * 400) 
+    if ShiftClick then 
+        ui_set(elements.MinimumWidth, ui_get(elements.MenuSize)/100 * 400) 
+    end
 end
 
-local duration = 70
+local clantagduration = 70
 local clantag_prev
 function SpotifyClantag()
     if CurrentDataSpotify == nil then return end
     clantags = {"Listening to", CurrentDataSpotify.item.name, "by", CurrentDataSpotify.item.artists[1].name}
-    local cur = math.floor(globals.tickcount() / duration) % #clantags
+    local cur = math.floor(globals.tickcount() / clantagduration) % #clantags
     clantag = clantags[cur+1]
+
     if clantag ~= clantag_prev then
         clantag_prev = clantag
         client.set_clan_tag(clantag)
@@ -1038,16 +1151,14 @@ function OnFrame()
         last_update_error = client.unix_time()
     end
 
+    ShiftClick = client.key_state(0x10)
     if ui_get(MainCheckbox) and Authed then
         AdjustSize()
         DrawNowPlaying()
         ShowMenuElements()
 
-        if ui_get(elements.ControlSwitch) then
-            MusicControls()
-        end
-
         if ui_get(elements.DebugInfo) then
+            ui_set(elements.VolumeLabel, "NewVolume: " .. NewVolume)
             ui_set(elements.SpotifyPosition, "Position(x - x2(width), y): " .. SpotifyIndicX .. " - " .. SpotifyIndicX2 .. "(" .. adaptivesize .. "), " .. SpotifyIndicY .. "y")
         end
 
@@ -1063,11 +1174,50 @@ function OnFrame()
         if ui.is_menu_open() then Dragging(); UpdateElements() end
 
         if ui_get(elements.ControlSwitch) then
+            if NewVolume >= 100 then 
+                NewVolume = 100
+            elseif NewVolume <= 0 then
+                NewVolume = 0
+            end 
+            MusicControls()
+            gaySexgamer()
+            VolumeHandler()
             if ui_get(elements.PlayPause) or ui_get(elements.SkipSong) or ui_get(elements.PreviousSong) or ui_get(elements.SmartControls) then
                 ControlCheck = true
             else
                 ControlCheck = false
             end
+            
+            if ui_get(elements.IncreaseVolume) or ui_get(elements.DecreaseVolume) then
+
+                NiggerSex = true
+                VolumeCheck = true
+                SetCheck = false       
+
+                if globals.tickcount() > last_update_volume_press + 64 then
+                    FirstPress = false
+                end
+            else
+                last_update_volume_press = globals.tickcount()
+                FirstPress = true
+                VolumeCheck = false
+                StopSpamming = true
+            end
+
+            if StopSpamming == false then
+                last_update_volume_set = globals.tickcount()
+            end
+
+            if FirstPress == false then
+                if globals.tickcount() > last_update_volume + ui_get(elements.VolumeTickSpeed) then
+                    if ui_get(elements.IncreaseVolume) then
+                        NewVolume = NewVolume + ui_get(elements.VolumeTickAmount)
+                    elseif ui_get(elements.DecreaseVolume) then
+                        NewVolume = NewVolume - ui_get(elements.VolumeTickAmount)
+                    end
+                    last_update_volume = globals.tickcount()
+                end
+            end  
         end
     end
 end
