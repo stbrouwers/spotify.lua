@@ -795,6 +795,7 @@ function VolumeHandler()
         molestingInfants = false
         stopRequest = false
         NiggerSex = false
+        groomingNiglets = true
         ChangeVolume() 
     end
 end
@@ -943,6 +944,10 @@ local function AdjustSize()
     SpotifyIndicX2 = SpotifyIndicX + adaptivesize
 end
         
+local c = {130, 130, 130}
+local g, h = 255, 0
+local l = {30, 150}
+
 local function CustomLayout() 
     ArtScaleX, ArtScaleY = SpotifyScaleY, SpotifyScaleY
     if ui_get(elements.CustomColors) then
@@ -1000,6 +1005,9 @@ local function CustomLayout()
         end
     end
 end
+
+-- not stolen
+local volume_drawer=(function()local a={callback_registered=false,maximum_count=7,data={}}function a:register_callback()if self.callback_registered then return end;client.set_event_callback('paint_ui',function()local b={30,150}local c={180,180,180}local d=5;local e=self.data;for f=#e,1,-1 do self.data[f].time=self.data[f].time-globals.frametime()local g,h=255,0;local i=e[f]if i.time<0 then table.remove(self.data,f)else local j=i.def_time-i.time;local j=j>1 and 1 or j;if i.time<0.5 or j<0.5 then h=(j<1 and j or i.time)/0.5;g=h*255;if h<0.2 then d=d+15*(1.0-h/0.2)end end;local k={renderer.measure_text(nil,i.draw)}local l={b[1],b[2]}renderer.circle(l[1],l[2],c[1],c[2],c[3],g,20,90,0.5)renderer.circle(l[1],l[2]+100,c[1],c[2],c[3],g,19,270,0.5)renderer.rectangle(l[1]-19.3,l[2],39,100,c[1],c[2],c[3],g)renderer.circle(l[1],l[2],130,130,130,g,19,270,0.5)renderer.rectangle(l[1]-19.3,l[2],39,NewVolume,130,130,130,g)d=d-50 end end;self.callback_registered=true end)end;function a:paint(m,n)local o=tonumber(m)+1;for f=self.maximum_count,2,-1 do self.data[f]=self.data[f-1]end;self.data[1]={time=o,def_time=o,draw=n}self:register_callback()end;return a end)()
         
 local function DrawNowPlaying()
     if ui_get(elements.CustomColors) then
@@ -1020,8 +1028,18 @@ local function DrawNowPlaying()
 
     if CurrentDataSpotify == nil then return end
 
-    if NiggerSex == true then
-        surface.draw_text(10,10, 255, 255, 255, 255, DurationFont, "Volume: " .. NewVolume .. "%")
+    if NiggerSex then
+        --surface.draw_text(10,10, 255, 255, 255, 255, DurationFont, "Volume: " .. NewVolume .. "%")
+        renderer.circle(l[1]-1, l[2], c[1], c[2], c[3], g, 19, 90, 0.5)
+        renderer.circle(l[1]-1, l[2] + 100, c[1], c[2], c[3], g, 19, 270, 0.5)
+        renderer.rectangle(l[1] - 19.2, l[2], 38, 100, c[1], c[2], c[3], g)
+        renderer.rectangle(l[1] - 19.2, l[2]+100, 38, -NewVolume, 180, 180, 180, g)
+        if NewVolume ~= 0 then
+            renderer.circle(l[1]-1, l[2] + 100, 180, 180, 180, g, 19, 270, 0.5)
+        end
+        if NewVolume >= 100 then
+            renderer.circle(l[1]-1, l[2], 180, 180, 180, g, 19, 90, 0.5)
+        end
     end
     switch(ui_get(elements.IndicType)) {
 
