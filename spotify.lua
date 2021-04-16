@@ -373,7 +373,7 @@ local elements = {
         ForceReflowButton = ui_new_button("MISC", "Miscellaneous", "Force element reflow", function() ForceReflow() end),
 
     ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Cover art"),
-        CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Location", "Left", "Right"),
+        CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Positioning", "Left", "Right"),
         SongDurationToggle = ui_new_checkbox("MISC", "Miscellaneous", "Song duration"),
 
     DisplayConnected = ui_new_checkbox("MISC", "Miscellaneous", "Display connected account"),
