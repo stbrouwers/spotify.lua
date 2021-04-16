@@ -269,13 +269,15 @@ function UpdateInf()
 
             TotalDuration = msConversion(CurrentDataSpotify.item.duration_ms)
             ProgressDuration = msConversion(CurrentDataSpotify.progress_ms)
-            ThumbnailUrl = CurrentDataSpotify.item.album.images[1].url
-            http.get(ThumbnailUrl, function(success, response)
-                if not success or response.status ~= 200 then
-                  return
-                end
-            Thumbnail = images.load_jpg(response.body)
-            end)
+            if not CurrentDataSpotify.item.is_local then
+                ThumbnailUrl = CurrentDataSpotify.item.album.images[1].url
+                http.get(ThumbnailUrl, function(success, response)
+                    if not success or response.status ~= 200 then
+                      return
+                    end
+                Thumbnail = images.load_jpg(response.body)
+                end)
+            end
             if SongNameBack ~= SongName and SongNameBack ~= nil then
                 SpotifyIndicX2 = SpotifyIndicX+adaptivesize
                 SongChanged = true
@@ -962,12 +964,12 @@ local function CustomLayout()
         switch(ui_get(elements.CustomLayoutType)) {
         
             Left = function()
-                if ui_get(elements.ArtButton) and Thumbnail ~= nil then
+                if ui_get(elements.ArtButton) and Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
                     local function drawLeft()
                         Thumbnail:draw(SpotifyIndicX-ArtScaleX, SpotifyIndicY, ArtScaleX, ArtScaleY)
                     end
                     status, retval = pcall(drawLeft)
-                    if status == false then
+                    if status == false or CurrentDataSpotify.item.is_local then
                         retardedJpg = true
                     end
                 else end
@@ -1007,7 +1009,7 @@ local function CustomLayout()
 end
 
 -- not stolen
-local volume_drawer=(function()local a={callback_registered=false,maximum_count=7,data={}}function a:register_callback()if self.callback_registered then return end;client.set_event_callback('paint_ui',function()local b={30,150}local c={180,180,180}local d=5;local e=self.data;for f=#e,1,-1 do self.data[f].time=self.data[f].time-globals.frametime()local g,h=255,0;local i=e[f]if i.time<0 then table.remove(self.data,f)else local j=i.def_time-i.time;local j=j>1 and 1 or j;if i.time<0.5 or j<0.5 then h=(j<1 and j or i.time)/0.5;g=h*255;if h<0.2 then d=d+15*(1.0-h/0.2)end end;local k={renderer.measure_text(nil,i.draw)}local l={b[1],b[2]}renderer.circle(l[1],l[2],c[1],c[2],c[3],g,20,90,0.5)renderer.circle(l[1],l[2]+100,c[1],c[2],c[3],g,19,270,0.5)renderer.rectangle(l[1]-19.3,l[2],39,100,c[1],c[2],c[3],g)renderer.circle(l[1],l[2],130,130,130,g,19,270,0.5)renderer.rectangle(l[1]-19.3,l[2],39,NewVolume,130,130,130,g)d=d-50 end end;self.callback_registered=true end)end;function a:paint(m,n)local o=tonumber(m)+1;for f=self.maximum_count,2,-1 do self.data[f]=self.data[f-1]end;self.data[1]={time=o,def_time=o,draw=n}self:register_callback()end;return a end)()
+local volume_drawer=(function()local a={callback_registered=false,maximum_count=7,data={}}function a:register_callback()if self.callback_registered then return end;client.set_event_callback('paint_ui',function()local b={30,150}local c={13,13,13}local d=5;local e=self.data;for f=#e,1,-1 do self.data[f].time=self.data[f].time-globals.frametime()local g,h=255,0;local i=e[f]if i.time<0 then table.remove(self.data,f)else local j=i.def_time-i.time;local j=j>1 and 1 or j;if i.time<0.5 or j<0.5 then h=(j<1 and j or i.time)/0.5;g=h*255;if h<0.2 then d=d+15*(1.0-h/0.2)end end;local k={renderer.measure_text(nil,i.draw)}local l={b[1],b[2]}renderer.circle(l[1],l[2],c[1],c[2],c[3],g,20,90,0.5)renderer.circle(l[1],l[2]+100,c[1],c[2],c[3],g,19,270,0.5)renderer.rectangle(l[1]-19.3,l[2],39,100,c[1],c[2],c[3],g)renderer.circle(l[1],l[2],130,130,130,g,19,270,0.5)renderer.rectangle(l[1]-19.3,l[2],39,NewVolume,130,130,130,g)d=d-50 end end;self.callback_registered=true end)end;function a:paint(m,n)local o=tonumber(m)+1;for f=self.maximum_count,2,-1 do self.data[f]=self.data[f-1]end;self.data[1]={time=o,def_time=o,draw=n}self:register_callback()end;return a end)()
         
 local function DrawNowPlaying()
     if ui_get(elements.CustomColors) then
@@ -1030,16 +1032,9 @@ local function DrawNowPlaying()
 
     if NiggerSex then
         --surface.draw_text(10,10, 255, 255, 255, 255, DurationFont, "Volume: " .. NewVolume .. "%")
-        renderer.circle(l[1]-1, l[2], c[1], c[2], c[3], g, 19, 90, 0.5)
-        renderer.circle(l[1]-1, l[2] + 100, c[1], c[2], c[3], g, 19, 270, 0.5)
-        renderer.rectangle(l[1] - 19.2, l[2], 38, 100, c[1], c[2], c[3], g)
-        renderer.rectangle(l[1] - 19.2, l[2]+100, 38, -NewVolume, 180, 180, 180, g)
-        if NewVolume ~= 0 then
-            renderer.circle(l[1]-1, l[2] + 100, 180, 180, 180, g, 19, 270, 0.5)
-        end
-        if NewVolume >= 100 then
-            renderer.circle(l[1]-1, l[2], 180, 180, 180, g, 19, 90, 0.5)
-        end
+        renderer.rectangle(l[1]-10, l[2], 5, 100, 64, 64, 64, 255)
+        renderer.rectangle(l[1]-10, l[2]+100, 5, -NewVolume, 29, 185, 84, 255)
+        renderer.circle(l[1]-7, l[2]+100-NewVolume, 255, 255, 255, 255, 6, 0, 1)
     end
     switch(ui_get(elements.IndicType)) {
 
