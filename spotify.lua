@@ -24,6 +24,7 @@ local last_update_error = client.unix_time()
 local last_update_volume = globals.tickcount()
 local last_update_volume_press = globals.tickcount()
 local last_update_volume_set = globals.tickcount()
+local last_tick = globals.tickcount()
 local sx, sy = client.screen_size()
 
 MenuScaleX = 4.8
@@ -36,9 +37,11 @@ local ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 
 local TitleFontHUD = surface.create_font("GothamBookItalic", 25, 900, 0x010)
 local ArtistFontHUD = surface.create_font("GothamBookItalic", 20, 600, 0x010)
 local DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 600, 0x010)
+local DurationFontHUD = surface.create_font("GothamBookItalic", 12, 900, 0x010)
 local VolumeFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
 
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
+local MenukeyReference = ui.reference("MISC", "Settings", "Menu key")
 
 local SpotifyIndicX = database_read("previous_posX") or 0
 local SpotifyIndicY = database_read("previous_posY") or 1020
@@ -76,6 +79,7 @@ SetCheck = true
 forkinCock = true
 bool = true
 gropeTits = true
+animCheck = false
 
 limitval = 0
 indicxcomp = -0.1
@@ -103,8 +107,42 @@ SongProgression = "-"
 SongLength = "-"
 TotalDuration = "-"
 ProgressDuration = "-"
+LeftDuration = "-"
 SongNameBack = "-"
 AuthURL = "https://spotify.stbrouwers.cc/"
+
+local LoopUrl = "https://i.imgur.com/wREhluX.png"
+local LoopActiveUrl = "https://i.imgur.com/rEEvjzM.png"
+local ShuffleUrl = "https://i.imgur.com/8hjJTCO.png"
+local ShuffleActiveUrl = "https://i.imgur.com/HNVpf4j.png"
+
+http.get(LoopUrl, function(success, response)
+    if not success or response.status ~= 200 then
+      return
+    end
+    Loop = images.load_png(response.body)
+end)
+
+http.get(LoopActiveUrl, function(success, response)
+    if not success or response.status ~= 200 then
+      return
+    end
+    LoopA = images.load_png(response.body)
+end)
+
+http.get(ShuffleUrl, function(success, response)
+    if not success or response.status ~= 200 then
+      return
+    end
+    Shuffle = images.load_png(response.body)
+end)
+
+http.get(ShuffleActiveUrl, function(success, response)
+    if not success or response.status ~= 200 then
+      return
+    end
+    ShuffleA = images.load_png(response.body)
+end)
 
 if database_read("previous_posX") == nil then
     database_write("previous_posX", SpotifyIndicX)
@@ -259,11 +297,14 @@ function UpdateInf()
             if CurrentDataSpotify.is_playing and CurrentDataSpotify.currently_playing_type == "episode" then
                 SongName = "Podcast"
                 ArtistName = ""
+                PlayState = "Playing"
             elseif CurrentDataSpotify.is_playing then
                 SongName = CurrentDataSpotify.item.name
                 ArtistName = CurrentDataSpotify.item.artists[1].name
+                PlayState = "Playing"
             else
                 SongName = "Music paused"
+                PlayState = "Paused"
                 ArtistName = ""
             end
             SongLength = CurrentDataSpotify.item.duration_ms / 1000
@@ -271,6 +312,7 @@ function UpdateInf()
 
             TotalDuration = msConversion(CurrentDataSpotify.item.duration_ms)
             ProgressDuration = msConversion(CurrentDataSpotify.progress_ms)
+            LeftDuration = msConversion(CurrentDataSpotify.item.duration_ms - CurrentDataSpotify.progress_ms)
             if not CurrentDataSpotify.item.is_local then
                 ThumbnailUrl = CurrentDataSpotify.item.album.images[1].url
                 http.get(ThumbnailUrl, function(success, response)
@@ -374,6 +416,8 @@ local elements = {
         AddError = ui_new_button("MISC", "Miscellaneous", "Add an error", function() AuthStatus = "TOKEN" ErrorSpree = ErrorSpree + 1 TotalErrors = TotalErrors + 1 end),
         ForceReflowButton = ui_new_button("MISC", "Miscellaneous", "Force element reflow", function() ForceReflow() end),
 
+    MenuBarEnable = ui_new_checkbox("MISC", "Miscellaneous", "Menu bar"),
+
     ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Cover art"),
         CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Location", "Left", "Right"),
         SongDurationToggle = ui_new_checkbox("MISC", "Miscellaneous", "Song duration"),
@@ -415,6 +459,7 @@ local elements = {
 
 
     Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
+    HigherUpdateRate = ui_new_checkbox("MISC", "Miscellaneous", "Higher update rate (experimental)"),
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
 }
 
@@ -478,6 +523,8 @@ function ShowMenuElements()
         ui_set_visible(elements.MenuSize, true)
         ui_set_visible(elements.SongDurationToggle, true)
         ui_set_visible(elements.ResetAuth, true)
+        ui_set_visible(elements.MenuBarEnable, true)
+        ui_set_visible(elements.HigherUpdateRate, true)
 
         if ui_get(elements.IndicType) == "Spotify" then
             ui_set_visible(elements.DisplayConnected, false)
@@ -953,6 +1000,7 @@ local g, h = 255, 0
 local l = {30, 150}
 
 local function CustomLayout() 
+    if ui_get(elements.MenuBarEnable) and ui.is_menu_open() then return end
     ArtScaleX, ArtScaleY = SpotifyScaleY, SpotifyScaleY
     if ui_get(elements.CustomColors) then
         tr1, tg1, tb1, ta1 = ui.get(elements.TextColorPrimary)
@@ -1038,9 +1086,11 @@ local function DrawNowPlaying()
         renderer.rectangle(l[1]-10, l[2]+100, 5, -NewVolume, 29, 185, 84, 255)
         renderer.circle(l[1]-7, l[2]+100-NewVolume, 255, 255, 255, 255, 6, 0, 1)
     end
+
     switch(ui_get(elements.IndicType)) {
 
         Spotify = function()
+            if ui_get(elements.MenuBarEnable) and ui.is_menu_open() then return end
             SpotifyScaleX = sx/MenuScaleX
             SpotifyScaleY = sy/MenuScaleY
             if ui_get(elements.CustomLayoutType) == "Left" and ui_get(elements.ArtButton) then
@@ -1124,18 +1174,110 @@ function ChangeMenuSize()
     print(ScaleArtist)
 end
 
+function animHandler() 
+    
+end
+
 function drawHUD()
+    if not ui_get(elements.MenuBarEnable) then return end
     local menuX, menuY = ui.menu_position()
     local menuW, menuH = ui.menu_size()
+    local MouseHudPosX = rawmouseposX - menuX - (menuW / 2) 
+    local MouseHudPosY = rawmouseposY - menuY - menuH
+    client.color_log(255,255,255,"X: " .. MouseHudPosX .. ", Y: " .. MouseHudPosY .. " | " .. (menuW / 2))
+    --client.color_log(255,255,255, "X: " .. menuX .. ", " .. "Y: " .. menuY .. " | " .. "W:" .. menuW .. ", " .. "H: " .. menuH)
     if ui.is_menu_open() then
+
+        local startpos = {
+            ShflX =  -140, ShflY = 30,
+            PrvX = -75, PrvY = 28,
+            PlpsX = -18, PlpsY = 22,
+            SkpX = 51, SkpY = 28,
+            RptX = 108, RptY = 30,
+            prgsbrX = -202, prgsbrY = 64
+        }
+
+        local endpos = {
+            ShflX = -112, ShflY = 45,
+            PrvX = -55, PrvY = 47,
+            PlpsX = 18, PlpsY = 54,
+            SkpX = 72, SkpY = 45,
+            RptX = 135, RptY = 45,
+            prgsbrX = 202, prgsbrY = 85
+        }
+
+        if menuW <= 1500 and menuW >= 1150 then
+            TitleFontHUD = surface.create_font("GothamBookItalic", menuW/50, 900, 0x010)
+            ArtistFontHUD = surface.create_font("GothamBookItalic", menuW/75, 600, 0x010)
+        elseif menuW <= 1150 and menuW >= 810 then
+            TitleFontHUD = surface.create_font("GothamBookItalic", menuW/40, 900, 0x010)
+            ArtistFontHUD = surface.create_font("GothamBookItalic", menuW/55, 600, 0x010)
+        elseif menuW <= 810 then 
+            TitleFontHUD = surface.create_font("GothamBookItalic", menuW/35, 900, 0x010)
+            ArtistFontHUD = surface.create_font("GothamBookItalic", menuW/45, 600, 0x010)
+        end
+
         --renderer.rectangle(menuX, menuY + menuH, menuW, 100, 13, 13, 13, 255)
-        surface.draw_filled_rect(menuX, menuY + menuH, menuW, 100, 25, 25, 25, 255)
-        renderer.circle_outline(menuX + (menuW / 2), menuY + menuH + 40, 255, 255, 255, 255, 16, 0, 1, 1)
-        --surface.draw_outlined_circle(menuX + (menuW / 2), menuY + menuH + 50, 255, 255, 255, 255, 24, 21)
-        surface.draw_filled_rect(menuX + (menuW / 2) - 5, menuY + menuH + 34, 3, 12, 255, 255, 255, 255)
-        surface.draw_filled_rect(menuX + (menuW / 2) + 2, menuY + menuH + 34, 3, 12, 255, 255, 255, 255)
+        surface.draw_filled_rect(menuX, menuY + menuH - 3, menuW, 100, 25, 25, 25, 255)
         surface.draw_text(menuX + 100, menuY + menuH + 20, 255, 255, 255, 255, TitleFontHUD, SongName)
         surface.draw_text(menuX + 100, menuY + menuH + 50, 159, 159, 159, 255, ArtistFontHUD, ArtistName)
+        surface.draw_filled_rect(menuX + (menuW / 2) - 150, menuY + menuH - 3, (menuW / 2) + 140, 100, 25, 25, 25, 255)
+
+
+        --Onscreen controls
+            --Play/Pause
+        renderer.circle_outline(menuX + (menuW / 2), menuY + menuH + 40, 255, 255, 255, 150, 16, 0, 1, 1)
+        surface.draw_filled_rect(menuX + (menuW / 2) - 5, menuY + menuH + 34, 3, 12, 255, 255, 255, 150)
+        surface.draw_filled_rect(menuX + (menuW / 2) + 2, menuY + menuH + 34, 3, 12, 255, 255, 255, 150)
+            --Skip/Previous
+        renderer.triangle(menuX + (menuW / 2) + 68, menuY + menuH + 39, menuX + (menuW / 2) + 55, menuY + menuH + 31,menuX + (menuW / 2) + 55, menuY + menuH + 47, 255, 255, 255, 150)
+        renderer.rectangle(menuX + (menuW / 2) + 68, menuY + menuH + 31, 3, 16, 255, 255, 255, 150)
+        renderer.triangle(menuX + (menuW / 2) - 68, menuY + menuH + 39, menuX + (menuW / 2) - 55, menuY + menuH + 31,menuX + (menuW / 2) - 55, menuY + menuH + 47, 255, 255, 255, 150)
+        renderer.rectangle(menuX + (menuW / 2) - 71, menuY + menuH + 31, 3, 16, 255, 255, 255, 150)
+
+            --shuffle/loop
+        Shuffle:draw(menuX + (menuW / 2) - 140, menuY + menuH + 24, 30, 30, 255, 255, 255, 150)
+        Loop:draw(menuX + (menuW / 2) + 110, menuY + menuH + 26, 25, 25, 255, 255, 255, 150)
+
+            --progressbar
+        surface.draw_text(menuX + (menuW / 2) - 245, menuY + menuH + 69, 159, 159, 159, 255, DurationFontHUD, ProgressDuration)
+        surface.draw_text(menuX + (menuW / 2) + 218, menuY + menuH + 69, 159, 159, 159, 255, DurationFontHUD, "-"..LeftDuration)
+
+        renderer.circle(menuX + (menuW / 2) - 200, menuY + menuH + 75, 50, 50, 50, 255, 3, 0, 1)
+        renderer.circle(menuX + (menuW / 2) + 201, menuY + menuH + 75, 50, 50, 50, 255, 3, 0, 1)
+        surface.draw_filled_rect(menuX + (menuW / 2) - 200, menuY + menuH + 72, 400, 6, 53, 53, 53, 255)
+        renderer.circle(menuX + (menuW / 2) - 200, menuY + menuH + 75, 50, 50, 50, 255, 3, 0, 1)
+
+        if MouseHudPosX >= startpos.ShflX and MouseHudPosX <= endpos.ShflX and MouseHudPosY >= startpos.ShflY and MouseHudPosY <= endpos.ShflY then
+            Shuffle:draw(menuX + (menuW / 2) - 140, menuY + menuH + 24, 30, 30, 255, 255, 255, 255)
+        elseif MouseHudPosX >= startpos.PrvX and MouseHudPosX <= endpos.PrvX and MouseHudPosY >= startpos.PrvY and MouseHudPosY <= endpos.PrvY then
+            renderer.triangle(menuX + (menuW / 2) - 68, menuY + menuH + 39, menuX + (menuW / 2) - 55, menuY + menuH + 31,menuX + (menuW / 2) - 55, menuY + menuH + 47, 255, 255, 255, 255)
+            renderer.rectangle(menuX + (menuW / 2) - 71, menuY + menuH + 31, 3, 16, 255, 255, 255, 255)
+        elseif MouseHudPosX >= startpos.PlpsX and MouseHudPosX <= endpos.PlpsX and MouseHudPosY >= startpos.PlpsY and MouseHudPosY <= endpos.PlpsY then
+            renderer.circle_outline(menuX + (menuW / 2), menuY + menuH + 40, 255, 255, 255, 255, 16, 0, 1, 1)
+            surface.draw_filled_rect(menuX + (menuW / 2) - 5, menuY + menuH + 34, 3, 12, 255, 255, 255, 255)
+            surface.draw_filled_rect(menuX + (menuW / 2) + 2, menuY + menuH + 34, 3, 12, 255, 255, 255, 255)
+        elseif MouseHudPosX >= startpos.SkpX and MouseHudPosX <= endpos.SkpX and MouseHudPosY >= startpos.SkpY and MouseHudPosY <= endpos.SkpY then
+            renderer.triangle(menuX + (menuW / 2) + 68, menuY + menuH + 39, menuX + (menuW / 2) + 55, menuY + menuH + 31,menuX + (menuW / 2) + 55, menuY + menuH + 47, 255, 255, 255, 255)
+            renderer.rectangle(menuX + (menuW / 2) + 68, menuY + menuH + 31, 3, 16, 255, 255, 255, 255)
+        elseif MouseHudPosX >= startpos.RptX and MouseHudPosX <= endpos.RptX and MouseHudPosY >= startpos.RptY and MouseHudPosY <= endpos.RptY then
+            Loop:draw(menuX + (menuW / 2) + 110, menuY + menuH + 26, 25, 25, 255, 255, 255, 255)
+        end
+
+        if MouseHudPosX >= startpos.prgsbrX and MouseHudPosX <= endpos.prgsbrX and MouseHudPosY >= startpos.prgsbrY and MouseHudPosY <= endpos.prgsbrY then
+            if CurrentDataSpotify.progress_ms >= 0 then
+                renderer.circle(menuX + (menuW / 2) - 200, menuY + menuH + 75, 30, 215, 96, 255, 3, 0, 1)
+            end    
+            renderer.circle(CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*402 + menuX + (menuW / 2) - 200, menuY + menuH + 75, 255, 255, 255, 255, 7, 0, 1)
+            surface.draw_filled_rect(menuX + (menuW / 2) - 200, menuY + menuH + 72, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*402, 6, 30, 215, 96, 255)
+        else
+            if CurrentDataSpotify.progress_ms >= 0 then
+                renderer.circle(menuX + (menuW / 2) - 200, menuY + menuH + 75, 150, 150, 150, 255, 3, 0, 1)
+            end
+            renderer.circle(CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*402 + menuX + (menuW / 2) - 200, menuY + menuH + 75, 150, 150, 150, 255, 3, 0, 1)
+            surface.draw_filled_rect(menuX + (menuW / 2) - 200, menuY + menuH + 72, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*402, 6, 150, 150, 150, 255)
+        end
+
         if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
             Thumbnail:draw(menuX + 10, menuY + menuH + 10, 75, 75)
         end
@@ -1187,6 +1329,11 @@ function OnFrame()
 
     ShiftClick = client.key_state(0x10)
     if ui_get(MainCheckbox) and Authed then
+        local LClick = client.key_state(0x01)
+        local mousepos = { ui.mouse_position() }
+        rawmouseposX = mousepos[1]
+        rawmouseposY = mousepos[2]
+        
         drawHUD()
         AdjustSize()
         DrawNowPlaying()
@@ -1200,10 +1347,6 @@ function OnFrame()
         if ui_get(elements.IndicType) == "Spotify" then CustomLayout() end
         if ui_get(elements.Clantag) then SpotifyClantag() end
 
-        local LClick = client.key_state(0x01)
-        local mousepos = { ui.mouse_position() }
-        rawmouseposX = mousepos[1]
-        rawmouseposY = mousepos[2]
         mouseposX = mousepos[1] - SpotifyIndicX
         mouseposY = mousepos[2] - SpotifyIndicY
         if ui.is_menu_open() then Dragging(); UpdateElements() end
@@ -1263,6 +1406,13 @@ ui_set_callback(elements.ArtButton, ShowMenuElements)
 ui_set_callback(elements.DebugInfo, ShowMenuElements)
 ui_set_callback(elements.CustomColors, ShowMenuElements)
 ui_set_callback(elements.MenuSize, ChangeMenuSize)
+ui_set_callback(elements.HigherUpdateRate, function() 
+    if ui_get(elements.HigherUpdateRate) then 
+        ui_set(elements.UpdateRate, 0)
+    else
+        ui_set(elements.UpdateRate, 1)
+    end
+end)
 
 client.set_event_callback("paint_ui", OnFrame)
 client.set_event_callback('shutdown', function()
