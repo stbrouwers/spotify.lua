@@ -33,6 +33,8 @@ ScaleArtist = 63.53
 ScaleDuration = 57
 local TitleFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
 local ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 0x010)
+local TitleFontHUD = surface.create_font("GothamBookItalic", 25, 900, 0x010)
+local ArtistFontHUD = surface.create_font("GothamBookItalic", 20, 600, 0x010)
 local DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 600, 0x010)
 local VolumeFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
 
@@ -373,7 +375,7 @@ local elements = {
         ForceReflowButton = ui_new_button("MISC", "Miscellaneous", "Force element reflow", function() ForceReflow() end),
 
     ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Cover art"),
-        CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Positioning", "Left", "Right"),
+        CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Location", "Left", "Right"),
         SongDurationToggle = ui_new_checkbox("MISC", "Miscellaneous", "Song duration"),
 
     DisplayConnected = ui_new_checkbox("MISC", "Miscellaneous", "Display connected account"),
@@ -1119,6 +1121,25 @@ function ChangeMenuSize()
     if ShiftClick then 
         ui_set(elements.MinimumWidth, ui_get(elements.MenuSize)/100 * 400) 
     end
+    print(ScaleArtist)
+end
+
+function drawHUD()
+    local menuX, menuY = ui.menu_position()
+    local menuW, menuH = ui.menu_size()
+    if ui.is_menu_open() then
+        --renderer.rectangle(menuX, menuY + menuH, menuW, 100, 13, 13, 13, 255)
+        surface.draw_filled_rect(menuX, menuY + menuH, menuW, 100, 25, 25, 25, 255)
+        renderer.circle_outline(menuX + (menuW / 2), menuY + menuH + 40, 255, 255, 255, 255, 16, 0, 1, 1)
+        --surface.draw_outlined_circle(menuX + (menuW / 2), menuY + menuH + 50, 255, 255, 255, 255, 24, 21)
+        surface.draw_filled_rect(menuX + (menuW / 2) - 5, menuY + menuH + 34, 3, 12, 255, 255, 255, 255)
+        surface.draw_filled_rect(menuX + (menuW / 2) + 2, menuY + menuH + 34, 3, 12, 255, 255, 255, 255)
+        surface.draw_text(menuX + 100, menuY + menuH + 20, 255, 255, 255, 255, TitleFontHUD, SongName)
+        surface.draw_text(menuX + 100, menuY + menuH + 50, 159, 159, 159, 255, ArtistFontHUD, ArtistName)
+        if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
+            Thumbnail:draw(menuX + 10, menuY + menuH + 10, 75, 75)
+        end
+    end
 end
 
 local clantagduration = 70
@@ -1166,6 +1187,7 @@ function OnFrame()
 
     ShiftClick = client.key_state(0x10)
     if ui_get(MainCheckbox) and Authed then
+        drawHUD()
         AdjustSize()
         DrawNowPlaying()
         ShowMenuElements()
