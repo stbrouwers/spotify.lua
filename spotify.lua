@@ -80,6 +80,9 @@ forkinCock = true
 bool = true
 gropeTits = true
 animCheck = false
+ShuffleState = false
+UpdateWaitCheck = false
+kanker = false
 
 limitval = 0
 indicxcomp = -0.1
@@ -103,18 +106,23 @@ deviceid = ""
 UserName = "-"
 SongName = "-"
 ArtistName = "-"
+SongNameHUD = "-"
+ArtistNameHUD = "-"
 SongProgression = "-"
 SongLength = "-"
 TotalDuration = "-"
 ProgressDuration = "-"
 LeftDuration = "-"
 SongNameBack = "-"
+HoveringOver = "none"
+RepeatState = "off"
 AuthURL = "https://spotify.stbrouwers.cc/"
 
 local LoopUrl = "https://i.imgur.com/wREhluX.png"
 local LoopActiveUrl = "https://i.imgur.com/rEEvjzM.png"
 local ShuffleUrl = "https://i.imgur.com/8hjJTCO.png"
 local ShuffleActiveUrl = "https://i.imgur.com/HNVpf4j.png"
+local VolumeSpeakerUrl = "https://i.imgur.com/rj2IJfJ.png"
 
 http.get(LoopUrl, function(success, response)
     if not success or response.status ~= 200 then
@@ -144,11 +152,18 @@ http.get(ShuffleActiveUrl, function(success, response)
     ShuffleA = images.load_png(response.body)
 end)
 
+http.get(VolumeSpeakerUrl, function(success, response)
+    if not success or response.status ~= 200 then
+      return
+    end
+    VolumeSpeaker = images.load_png(response.body)
+end)
+
 if database_read("previous_posX") == nil then
     database_write("previous_posX", SpotifyIndicX)
     database_write("previous_posY", SpotifyIndicY)
 else
-    if database_read("previous_posX") >= 1920 then
+    if database_read("previous_posX") >= sx + 3 then
         SpotifyIndicX = 0
         SpotifyIndicY = 1020
     end
@@ -178,6 +193,10 @@ local msConversion = function(b)
     else 
         return e..':'..c 
     end 
+end
+
+function round(n)
+	return n % 1 >= 0.5 and math.ceil(n) or math.floor(n)
 end
 
 local function GetRefreshToken() 
@@ -294,21 +313,29 @@ function UpdateInf()
                 RunOnceCheck = true
             end
 
-            if CurrentDataSpotify.is_playing and CurrentDataSpotify.currently_playing_type == "episode" then
-                SongName = "Podcast"
-                ArtistName = ""
-                PlayState = "Playing"
-            elseif CurrentDataSpotify.is_playing then
-                SongName = CurrentDataSpotify.item.name
-                ArtistName = CurrentDataSpotify.item.artists[1].name
-                PlayState = "Playing"
-            else
-                SongName = "Music paused"
-                PlayState = "Paused"
-                ArtistName = ""
+            if UpdateWaitCheck == false then
+                if CurrentDataSpotify.is_playing and CurrentDataSpotify.currently_playing_type == "episode"  then
+                    SongName = "Podcast"
+                    ArtistName = ""
+                    PlayState = "Playing"
+                elseif CurrentDataSpotify.is_playing then
+                    SongName = CurrentDataSpotify.item.name
+                    SongNameHUD = CurrentDataSpotify.item.name
+                    ArtistName = CurrentDataSpotify.item.artists[1].name
+                    ArtistNameHUD = CurrentDataSpotify.item.artists[1].name
+                    PlayState = "Playing"
+                else
+                    SongName = "Music paused"
+                    PlayState = "Paused"
+                    ArtistName = ""
+                end
+                SongLength = CurrentDataSpotify.item.duration_ms / 1000
+                SongProgression = CurrentDataSpotify.progress_ms / 1000
+                ShuffleState = CurrentDataSpotify.shuffle_state
+                RepeatState = CurrentDataSpotify.repeat_state
             end
-            SongLength = CurrentDataSpotify.item.duration_ms / 1000
-            SongProgression = CurrentDataSpotify.progress_ms / 1000
+            UpdateWaitCheck = false
+
 
             TotalDuration = msConversion(CurrentDataSpotify.item.duration_ms)
             ProgressDuration = msConversion(CurrentDataSpotify.progress_ms)
@@ -341,17 +368,20 @@ function PlayPause()
     }
 
     if CurrentDataSpotify.is_playing then
+        PlayState = "Paused"
 
         http.put("https://api.spotify.com/v1/me/player/pause?device_id=" .. deviceid, options, function(s, r)
             UpdateCount = UpdateCount + 1
             
         end)
     else
+        PlayState = "Playing"
+
         http.put("https://api.spotify.com/v1/me/player/play?device_id=" .. deviceid, options, function(s, r)
             UpdateCount = UpdateCount + 1
+            UpdateWaitCheck = true
         end)   
     end
-    UpdateInf()
 end
 
 function NextTrack()
@@ -365,7 +395,7 @@ function NextTrack()
         }
     }
 
-    http.post("https://api.spotify.com/v1/me/player/next?device_id" .. deviceid, options, function(s, r)
+    http.post("https://api.spotify.com/v1/me/player/next?device_id=" .. deviceid, options, function(s, r)
         UpdateCount = UpdateCount + 1
     end)   
     UpdateInf()
@@ -382,10 +412,55 @@ function PreviousTrack()
         }
     }
 
-    http.post("https://api.spotify.com/v1/me/player/previous?device_id" .. deviceid, options, function(s, r)
+    http.post("https://api.spotify.com/v1/me/player/previous?device_id=" .. deviceid, options, function(s, r)
         UpdateCount = UpdateCount + 1
     end)   
     UpdateInf()
+end
+
+function ShuffleToggle()
+    if ShuffleState == true then
+        ShuffleState = false
+    else
+        ShuffleState = true
+    end
+
+    local options = {
+        headers = {
+            ["Accept"] = "application/json",
+            ["Content-Type"] = "application/json",
+            ["Authorization"] = "Bearer " .. apikey,
+            ["Content-length"] = 0
+        }
+    }
+    http.put("https://api.spotify.com/v1/me/player/shuffle?device_id=" .. deviceid .. "&state=" .. tostring(ShuffleState), options, function(s, r)
+        UpdateCount = UpdateCount + 1
+        UpdateWaitCheck = true
+    end)
+end
+
+function LoopToggle()
+    if RepeatState == "off" then
+        RepeatState = "context"
+    elseif RepeatState == "context" then
+        RepeatState = "track"
+    elseif RepeatState == "track" then
+        RepeatState = "off"
+    end
+
+    local options = {
+        headers = {
+            ["Accept"] = "application/json",
+            ["Content-Type"] = "application/json",
+            ["Authorization"] = "Bearer " .. apikey,
+            ["Content-length"] = 0
+        }
+    } 
+
+    http.put("https://api.spotify.com/v1/me/player/repeat?device_id=" .. deviceid .. "&state=" .. RepeatState, options, function(s, r)
+        UpdateCount = UpdateCount + 1
+        UpdateWaitCheck = true
+    end)
 end
 
 local elements = {
@@ -417,6 +492,7 @@ local elements = {
         ForceReflowButton = ui_new_button("MISC", "Miscellaneous", "Force element reflow", function() ForceReflow() end),
 
     MenuBarEnable = ui_new_checkbox("MISC", "Miscellaneous", "Menu bar"),
+        HideOriginIndic = ui_new_checkbox("MISC", "Miscellaneous", "Hide indicator while in menu"),
 
     ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Cover art"),
         CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Location", "Left", "Right"),
@@ -463,9 +539,45 @@ local elements = {
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
 }
 
-function ChangeVolume() 
-    if stopRequest then return end
+function ChangeVolume(Svol) 
+    if kanker then 
+        kanker = false
+        local options = {
+            headers = {
+                ["Accept"] = "application/json",
+                ["Content-Type"] = "application/json",
+                ["Authorization"] = "Bearer " .. apikey,
+                ["Content-length"] = 0
+            }
+        }
 
+        http.put("https://api.spotify.com/v1/me/player/volume?volume_percent=" .. round(Svol) .. "&device_id=" .. deviceid, options, function(s, r)
+            UpdateCount = UpdateCount + 1
+        end)
+    else
+
+        if stopRequest then return end
+
+        local options = {
+            headers = {
+                ["Accept"] = "application/json",
+                ["Content-Type"] = "application/json",
+                ["Authorization"] = "Bearer " .. apikey,
+                ["Content-length"] = 0
+            }
+        }
+
+        http.put("https://api.spotify.com/v1/me/player/volume?volume_percent=" .. NewVolume .. "&device_id=" .. deviceid, options, function(s, r)
+            UpdateCount = UpdateCount + 1
+        end)
+        stopRequest = true
+        StopSpamming = false
+        SetCheck = true
+    end
+    UpdateInf()
+end 
+
+function Seek(seekms) 
     local options = {
         headers = {
             ["Accept"] = "application/json",
@@ -475,13 +587,11 @@ function ChangeVolume()
         }
     }
 
-    http.put("https://api.spotify.com/v1/me/player/volume?volume_percent=" .. NewVolume .. "&device_id=" .. deviceid, options, function(s, r)
+    http.put("https://api.spotify.com/v1/me/player/seek?position_ms=" .. round(seekms) .. "&device_id=" .. deviceid, options, function(s, r)
         UpdateCount = UpdateCount + 1
+        UpdateInf()
     end)
-    stopRequest = true
-    StopSpamming = false
-    SetCheck = true
-end 
+end
 
 function setConnected(value)
     ui_set(elements.Connected, value)
@@ -647,6 +757,12 @@ function ShowMenuElements()
             ui_set_visible(elements.ProgressGradient2, false)
             ui_set_visible(elements.GradientColour, false)
             ui_set_visible(elements.LabelGradientColour, false)
+        end
+
+        if ui_get(elements.MenuBarEnable) then
+            ui_set_visible(elements.HideOriginIndic, true)
+        else
+            ui_set_visible(elements.HideOriginIndic, false)
         end
                                                                                     
         if ui_get(elements.ControlSwitch) then
@@ -903,7 +1019,6 @@ local function Dragging()
     local mousepos = { ui.mouse_position() }
     rawmouseposX = mousepos[1]
     rawmouseposY = mousepos[2]
-    local LClick = client.key_state(0x01)
 
     if dragging and not LClick then
         dragging = false
@@ -1000,7 +1115,7 @@ local g, h = 255, 0
 local l = {30, 150}
 
 local function CustomLayout() 
-    if ui_get(elements.MenuBarEnable) and ui.is_menu_open() then return end
+    if ui_get(elements.MenuBarEnable) and ui_get(elements.HideOriginIndic) and ui.is_menu_open() then return end
     ArtScaleX, ArtScaleY = SpotifyScaleY, SpotifyScaleY
     if ui_get(elements.CustomColors) then
         tr1, tg1, tb1, ta1 = ui.get(elements.TextColorPrimary)
@@ -1081,7 +1196,6 @@ local function DrawNowPlaying()
     if CurrentDataSpotify == nil then return end
 
     if NiggerSex then
-        --surface.draw_text(10,10, 255, 255, 255, 255, DurationFont, "Volume: " .. NewVolume .. "%")
         renderer.rectangle(l[1]-10, l[2], 5, 100, 64, 64, 64, 255)
         renderer.rectangle(l[1]-10, l[2]+100, 5, -NewVolume, 29, 185, 84, 255)
         renderer.circle(l[1]-7, l[2]+100-NewVolume, 255, 255, 255, 255, 6, 0, 1)
@@ -1090,7 +1204,7 @@ local function DrawNowPlaying()
     switch(ui_get(elements.IndicType)) {
 
         Spotify = function()
-            if ui_get(elements.MenuBarEnable) and ui.is_menu_open() then return end
+            if ui_get(elements.MenuBarEnable) and ui_get(elements.HideOriginIndic) and ui.is_menu_open() then return end
             SpotifyScaleX = sx/MenuScaleX
             SpotifyScaleY = sy/MenuScaleY
             if ui_get(elements.CustomLayoutType) == "Left" and ui_get(elements.ArtButton) then
@@ -1171,41 +1285,111 @@ function ChangeMenuSize()
     if ShiftClick then 
         ui_set(elements.MinimumWidth, ui_get(elements.MenuSize)/100 * 400) 
     end
-    print(ScaleArtist)
 end
 
-function animHandler() 
-    
+function HoveringOverElement() 
+    if LClick == true and ClickCheck == true then return end
+    if LClick == true then
+        ClickCheck = true
+        switch(HoveringOver) {
+            shuffle = function()
+                ShuffleToggle()
+            end,
+
+            previous = function()
+                PreviousTrack()
+            end,
+
+            playpause = function()
+                PlayPause()
+            end,
+
+            skip = function()
+                NextTrack()
+            end,
+
+            loop = function()
+                LoopToggle()
+            end,
+
+            none = function ()
+                return
+            end
+        }
+    else
+        ClickCheck = false
+    end
+end
+
+function seekHandler()
+    MouseHudPosXprgs = rawmouseposX - menuX - (menuW / 2) + 202
+    if MouseHudPosXprgs >= 404 then
+        MouseHudPosXprgs = 404
+    elseif MouseHudPosXprgs <= 0 then
+        MouseHudPosXprgs = 0
+    end
+
+    if UnlockReg then
+        UpdateWaitCheck = true
+        surface.draw_filled_rect(menuX + (menuW / 2) - 200, menuY + menuH + 72, MouseHudPosXprgs, 6, 30, 215, 96, 255)
+        renderer.circle(menuX + (menuW / 2) - 200, menuY + menuH + 75, 30, 215, 96, 255, 3, 0, 1)
+        renderer.circle(MouseHudPosXprgs + menuX + (menuW / 2) - 200, menuY + menuH + 75, 255, 255, 255, 255, 7, 0, 1)
+        renderer.circle(MouseHudPosXprgs + menuX + (menuW / 2) - 200, menuY + menuH + 75, 20, 20, 20, 100, 4, 0, 1)
+
+        SeekedTime = CurrentDataSpotify.item.duration_ms/404*MouseHudPosXprgs
+        surface.draw_text(menuX + (menuW / 2) - 243, menuY + menuH + 69, 159, 159, 159, 255, DurationFontHUD, msConversion(SeekedTime))
+        surface.draw_text(menuX + (menuW / 2) + 218, menuY + menuH + 69, 159, 159, 159, 255, DurationFontHUD, "-"..msConversion(CurrentDataSpotify.item.duration_ms-SeekedTime))
+    end
+end
+
+function volumeHandler()
+    MouseHudvolX = rawmouseposX*-1 + menuX + menuW -24
+    if MouseHudvolX >= 82 then
+        MouseHudvolX = 82 
+    elseif MouseHudvolX <= 0 then
+        MouseHudvolX = 0
+    end
+    local kms = (MouseHudvolX -82)*-1
+    if UnlockReg2 then
+        UpdateWaitCheck = true
+        renderer.circle(menuX + menuW - 105, menuY + menuH + 48, 30, 215, 96, 255, 3, 0, 1)
+        renderer.circle(kms + menuX + menuW - 105, menuY + menuH + 48, 255, 255, 255, 255, 6, 0, 1)
+        surface.draw_filled_rect(menuX + menuW - 106, menuY + menuH + 45, kms, 6, 30, 215, 96, 255)
+        renderer.circle(kms + menuX + menuW - 105, menuY + menuH + 48, 20, 20, 20, 100, 3, 0, 1)
+        VolumeSpeaker:draw(menuX + menuW - 140, menuY + menuH + 38, 20, 20, 255, 255, 255, 150)
+        ScrolledVolume = 100/82*(kms)
+    end
 end
 
 function drawHUD()
     if not ui_get(elements.MenuBarEnable) then return end
-    local menuX, menuY = ui.menu_position()
-    local menuW, menuH = ui.menu_size()
-    local MouseHudPosX = rawmouseposX - menuX - (menuW / 2) 
-    local MouseHudPosY = rawmouseposY - menuY - menuH
-    client.color_log(255,255,255,"X: " .. MouseHudPosX .. ", Y: " .. MouseHudPosY .. " | " .. (menuW / 2))
-    --client.color_log(255,255,255, "X: " .. menuX .. ", " .. "Y: " .. menuY .. " | " .. "W:" .. menuW .. ", " .. "H: " .. menuH)
+    menuX, menuY = ui.menu_position()
+    menuW, menuH = ui.menu_size()
+    MouseHudPosX = rawmouseposX - menuX - (menuW / 2) 
+    MouseHudPosY = rawmouseposY - menuY - menuH
+    MouseHudrightPosX = rawmouseposX - menuX - menuW
     if ui.is_menu_open() then
-
+    
         local startpos = {
             ShflX =  -140, ShflY = 30,
             PrvX = -75, PrvY = 28,
             PlpsX = -18, PlpsY = 22,
             SkpX = 51, SkpY = 28,
             RptX = 108, RptY = 30,
-            prgsbrX = -202, prgsbrY = 64
+            prgsbrX = -202, prgsbrY = 64,
+            vlmvbrhX = -141, vlmvbrhY = 40
         }
-
+        
         local endpos = {
             ShflX = -112, ShflY = 45,
             PrvX = -55, PrvY = 47,
             PlpsX = 18, PlpsY = 54,
             SkpX = 72, SkpY = 45,
             RptX = 135, RptY = 45,
-            prgsbrX = 202, prgsbrY = 85
+            prgsbrX = 202, prgsbrY = 85,
+            vlmvbrhX = -20, vlmvbrhY = 55
         }
-
+        
         if menuW <= 1500 and menuW >= 1150 then
             TitleFontHUD = surface.create_font("GothamBookItalic", menuW/50, 900, 0x010)
             ArtistFontHUD = surface.create_font("GothamBookItalic", menuW/75, 600, 0x010)
@@ -1217,18 +1401,20 @@ function drawHUD()
             ArtistFontHUD = surface.create_font("GothamBookItalic", menuW/45, 600, 0x010)
         end
 
-        --renderer.rectangle(menuX, menuY + menuH, menuW, 100, 13, 13, 13, 255)
         surface.draw_filled_rect(menuX, menuY + menuH - 3, menuW, 100, 25, 25, 25, 255)
-        surface.draw_text(menuX + 100, menuY + menuH + 20, 255, 255, 255, 255, TitleFontHUD, SongName)
-        surface.draw_text(menuX + 100, menuY + menuH + 50, 159, 159, 159, 255, ArtistFontHUD, ArtistName)
+        surface.draw_text(menuX + 100, menuY + menuH + 20, 255, 255, 255, 255, TitleFontHUD, SongNameHUD)
+        surface.draw_text(menuX + 100, menuY + menuH + 50, 159, 159, 159, 255, ArtistFontHUD, ArtistNameHUD)
         surface.draw_filled_rect(menuX + (menuW / 2) - 150, menuY + menuH - 3, (menuW / 2) + 140, 100, 25, 25, 25, 255)
 
-
-        --Onscreen controls
+            --Onscreen controls
             --Play/Pause
         renderer.circle_outline(menuX + (menuW / 2), menuY + menuH + 40, 255, 255, 255, 150, 16, 0, 1, 1)
-        surface.draw_filled_rect(menuX + (menuW / 2) - 5, menuY + menuH + 34, 3, 12, 255, 255, 255, 150)
-        surface.draw_filled_rect(menuX + (menuW / 2) + 2, menuY + menuH + 34, 3, 12, 255, 255, 255, 150)
+        if PlayState == "Playing" then
+            surface.draw_filled_rect(menuX + (menuW / 2) - 5, menuY + menuH + 34, 3, 12, 255, 255, 255, 150)
+            surface.draw_filled_rect(menuX + (menuW / 2) + 2, menuY + menuH + 34, 3, 12, 255, 255, 255, 150)
+        elseif PlayState == "Paused" then
+            renderer.triangle(menuX + (menuW / 2) - 4, menuY + menuH + 34, menuX + (menuW / 2) - 4, menuY + menuH + 46,menuX + (menuW / 2) + 7, menuY + menuH + 40, 255, 255, 255, 150)
+        end
             --Skip/Previous
         renderer.triangle(menuX + (menuW / 2) + 68, menuY + menuH + 39, menuX + (menuW / 2) + 55, menuY + menuH + 31,menuX + (menuW / 2) + 55, menuY + menuH + 47, 255, 255, 255, 150)
         renderer.rectangle(menuX + (menuW / 2) + 68, menuY + menuH + 31, 3, 16, 255, 255, 255, 150)
@@ -1236,46 +1422,119 @@ function drawHUD()
         renderer.rectangle(menuX + (menuW / 2) - 71, menuY + menuH + 31, 3, 16, 255, 255, 255, 150)
 
             --shuffle/loop
-        Shuffle:draw(menuX + (menuW / 2) - 140, menuY + menuH + 24, 30, 30, 255, 255, 255, 150)
-        Loop:draw(menuX + (menuW / 2) + 110, menuY + menuH + 26, 25, 25, 255, 255, 255, 150)
+        if ShuffleState == false then
+            Shuffle:draw(menuX + (menuW / 2) - 140, menuY + menuH + 24, 30, 30, 255, 255, 255, 150)
+        else
+            ShuffleA:draw(menuX + (menuW / 2) - 140, menuY + menuH + 24, 30, 30, 255, 255, 255, 150)
+            renderer.circle(menuX + (menuW / 2) - 126, menuY + menuH + 55, 30, 215, 96, 190, 2, 0, 1)
+        end
+
+        if RepeatState == "off" then
+            Loop:draw(menuX + (menuW / 2) + 110, menuY + menuH + 26, 25, 25, 255, 255, 255, 150)
+        elseif RepeatState == "context" then
+            LoopA:draw(menuX + (menuW / 2) + 110, menuY + menuH + 26, 25, 25, 255, 255, 255, 150)
+        elseif RepeatState == "track" then
+            LoopA:draw(menuX + (menuW / 2) + 110, menuY + menuH + 26, 25, 25, 255, 255, 255, 150)
+            renderer.circle(menuX + (menuW / 2) + 122, menuY + menuH + 55, 30, 215, 96, 190, 2, 0, 1)
+        end
 
             --progressbar
-        surface.draw_text(menuX + (menuW / 2) - 245, menuY + menuH + 69, 159, 159, 159, 255, DurationFontHUD, ProgressDuration)
-        surface.draw_text(menuX + (menuW / 2) + 218, menuY + menuH + 69, 159, 159, 159, 255, DurationFontHUD, "-"..LeftDuration)
+        if not UnlockReg then
+            surface.draw_text(menuX + (menuW / 2) - 243, menuY + menuH + 69, 159, 159, 159, 255, DurationFontHUD, ProgressDuration)
+            surface.draw_text(menuX + (menuW / 2) + 218, menuY + menuH + 69, 159, 159, 159, 255, DurationFontHUD, "-"..LeftDuration)
+        end
 
         renderer.circle(menuX + (menuW / 2) - 200, menuY + menuH + 75, 50, 50, 50, 255, 3, 0, 1)
         renderer.circle(menuX + (menuW / 2) + 201, menuY + menuH + 75, 50, 50, 50, 255, 3, 0, 1)
         surface.draw_filled_rect(menuX + (menuW / 2) - 200, menuY + menuH + 72, 400, 6, 53, 53, 53, 255)
-        renderer.circle(menuX + (menuW / 2) - 200, menuY + menuH + 75, 50, 50, 50, 255, 3, 0, 1)
 
-        if MouseHudPosX >= startpos.ShflX and MouseHudPosX <= endpos.ShflX and MouseHudPosY >= startpos.ShflY and MouseHudPosY <= endpos.ShflY then
-            Shuffle:draw(menuX + (menuW / 2) - 140, menuY + menuH + 24, 30, 30, 255, 255, 255, 255)
-        elseif MouseHudPosX >= startpos.PrvX and MouseHudPosX <= endpos.PrvX and MouseHudPosY >= startpos.PrvY and MouseHudPosY <= endpos.PrvY then
-            renderer.triangle(menuX + (menuW / 2) - 68, menuY + menuH + 39, menuX + (menuW / 2) - 55, menuY + menuH + 31,menuX + (menuW / 2) - 55, menuY + menuH + 47, 255, 255, 255, 255)
-            renderer.rectangle(menuX + (menuW / 2) - 71, menuY + menuH + 31, 3, 16, 255, 255, 255, 255)
-        elseif MouseHudPosX >= startpos.PlpsX and MouseHudPosX <= endpos.PlpsX and MouseHudPosY >= startpos.PlpsY and MouseHudPosY <= endpos.PlpsY then
-            renderer.circle_outline(menuX + (menuW / 2), menuY + menuH + 40, 255, 255, 255, 255, 16, 0, 1, 1)
-            surface.draw_filled_rect(menuX + (menuW / 2) - 5, menuY + menuH + 34, 3, 12, 255, 255, 255, 255)
-            surface.draw_filled_rect(menuX + (menuW / 2) + 2, menuY + menuH + 34, 3, 12, 255, 255, 255, 255)
-        elseif MouseHudPosX >= startpos.SkpX and MouseHudPosX <= endpos.SkpX and MouseHudPosY >= startpos.SkpY and MouseHudPosY <= endpos.SkpY then
-            renderer.triangle(menuX + (menuW / 2) + 68, menuY + menuH + 39, menuX + (menuW / 2) + 55, menuY + menuH + 31,menuX + (menuW / 2) + 55, menuY + menuH + 47, 255, 255, 255, 255)
-            renderer.rectangle(menuX + (menuW / 2) + 68, menuY + menuH + 31, 3, 16, 255, 255, 255, 255)
-        elseif MouseHudPosX >= startpos.RptX and MouseHudPosX <= endpos.RptX and MouseHudPosY >= startpos.RptY and MouseHudPosY <= endpos.RptY then
-            Loop:draw(menuX + (menuW / 2) + 110, menuY + menuH + 26, 25, 25, 255, 255, 255, 255)
+            --VolumeSlider
+        renderer.circle(menuX + menuW - 105, menuY + menuH + 48, 50, 50, 50, 255, 3, 0, 1)
+        renderer.circle(menuX + menuW - 26, menuY + menuH + 48, 50, 50, 50, 255, 3, 0, 1)
+        surface.draw_filled_rect(menuX + menuW - 106, menuY + menuH + 45, 80, 6, 53, 53, 53, 255)
+
+            --hovering
+        if not LClick then
+            if MouseHudPosX >= startpos.ShflX and MouseHudPosX <= endpos.ShflX and MouseHudPosY >= startpos.ShflY and MouseHudPosY <= endpos.ShflY then
+                if ShuffleState == false then
+                    Shuffle:draw(menuX + (menuW / 2) - 140, menuY + menuH + 24, 30, 30, 255, 255, 255, 255)
+                else
+                    ShuffleA:draw(menuX + (menuW / 2) - 140, menuY + menuH + 24, 30, 30, 255, 255, 255, 255)
+                end
+                HoveringOver = "shuffle"
+            elseif MouseHudPosX >= startpos.PrvX and MouseHudPosX <= endpos.PrvX and MouseHudPosY >= startpos.PrvY and MouseHudPosY <= endpos.PrvY then
+                renderer.triangle(menuX + (menuW / 2) - 68, menuY + menuH + 39, menuX + (menuW / 2) - 55, menuY + menuH + 31,menuX + (menuW / 2) - 55, menuY + menuH + 47, 255, 255, 255, 255)
+                renderer.rectangle(menuX + (menuW / 2) - 71, menuY + menuH + 31, 3, 16, 255, 255, 255, 255)
+                HoveringOver = "previous"
+            elseif MouseHudPosX >= startpos.PlpsX and MouseHudPosX <= endpos.PlpsX and MouseHudPosY >= startpos.PlpsY and MouseHudPosY <= endpos.PlpsY then
+                renderer.circle_outline(menuX + (menuW / 2), menuY + menuH + 40, 255, 255, 255, 255, 16, 0, 1, 1)
+                if PlayState == "Playing" then
+                    surface.draw_filled_rect(menuX + (menuW / 2) - 5, menuY + menuH + 34, 3, 12, 255, 255, 255, 255)
+                    surface.draw_filled_rect(menuX + (menuW / 2) + 2, menuY + menuH + 34, 3, 12, 255, 255, 255, 255)
+                elseif PlayState == "Paused" then
+                    renderer.triangle(menuX + (menuW / 2) - 4, menuY + menuH + 34, menuX + (menuW / 2) - 4, menuY + menuH + 46,menuX + (menuW / 2) + 7, menuY + menuH + 40, 255, 255, 255, 255)
+                end
+                HoveringOver = "playpause"
+            elseif MouseHudPosX >= startpos.SkpX and MouseHudPosX <= endpos.SkpX and MouseHudPosY >= startpos.SkpY and MouseHudPosY <= endpos.SkpY then
+                renderer.triangle(menuX + (menuW / 2) + 68, menuY + menuH + 39, menuX + (menuW / 2) + 55, menuY + menuH + 31,menuX + (menuW / 2) + 55, menuY + menuH + 47, 255, 255, 255, 255)
+                renderer.rectangle(menuX + (menuW / 2) + 68, menuY + menuH + 31, 3, 16, 255, 255, 255, 255)
+                HoveringOver = "skip"
+            elseif MouseHudPosX >= startpos.RptX and MouseHudPosX <= endpos.RptX and MouseHudPosY >= startpos.RptY and MouseHudPosY <= endpos.RptY then
+                if RepeatState == "off" then
+                    Loop:draw(menuX + (menuW / 2) + 110, menuY + menuH + 26, 25, 25, 255, 255, 255, 255)
+                else
+                    LoopA:draw(menuX + (menuW / 2) + 110, menuY + menuH + 26, 25, 25, 255, 255, 255, 255)
+                end
+                HoveringOver = "loop"
+            else
+                HoveringOver = "none"
+            end
         end
+        HoveringOverElement()
 
-        if MouseHudPosX >= startpos.prgsbrX and MouseHudPosX <= endpos.prgsbrX and MouseHudPosY >= startpos.prgsbrY and MouseHudPosY <= endpos.prgsbrY then
-            if CurrentDataSpotify.progress_ms >= 0 then
-                renderer.circle(menuX + (menuW / 2) - 200, menuY + menuH + 75, 30, 215, 96, 255, 3, 0, 1)
-            end    
-            renderer.circle(CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*402 + menuX + (menuW / 2) - 200, menuY + menuH + 75, 255, 255, 255, 255, 7, 0, 1)
-            surface.draw_filled_rect(menuX + (menuW / 2) - 200, menuY + menuH + 72, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*402, 6, 30, 215, 96, 255)
+        if MouseHudPosX >= startpos.prgsbrX and MouseHudPosX <= endpos.prgsbrX and MouseHudPosY >= startpos.prgsbrY and MouseHudPosY <= endpos.prgsbrY or UnlockReg then
+            if LClick then
+                UnlockReg = true
+                seekHandler()
+            else
+                if CurrentDataSpotify.progress_ms >= 0 then
+                    renderer.circle(menuX + (menuW / 2) - 200, menuY + menuH + 75, 30, 215, 96, 255, 3, 0, 1)
+                end    
+                renderer.circle(CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*402 + menuX + (menuW / 2) - 200, menuY + menuH + 75, 255, 255, 255, 255, 7, 0, 1)
+                surface.draw_filled_rect(menuX + (menuW / 2) - 200, menuY + menuH + 72, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*402, 6, 30, 215, 96, 255)
+            end
         else
             if CurrentDataSpotify.progress_ms >= 0 then
                 renderer.circle(menuX + (menuW / 2) - 200, menuY + menuH + 75, 150, 150, 150, 255, 3, 0, 1)
             end
             renderer.circle(CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*402 + menuX + (menuW / 2) - 200, menuY + menuH + 75, 150, 150, 150, 255, 3, 0, 1)
             surface.draw_filled_rect(menuX + (menuW / 2) - 200, menuY + menuH + 72, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*402, 6, 150, 150, 150, 255)
+        end
+
+        if MouseHudrightPosX >= startpos.vlmvbrhX and MouseHudrightPosX <= endpos.vlmvbrhX and MouseHudPosY >= startpos.vlmvbrhY and MouseHudPosY <= endpos.vlmvbrhY or UnlockReg2 then
+            if LClick then
+                UnlockReg2 = true
+                volumeHandler()
+            else
+                if CurrentDataSpotify.device.volume_percent >= 1 then
+                    renderer.circle(menuX + menuW - 105, menuY + menuH + 48, 30, 215, 96, 255, 3, 0, 1)
+                end    
+                renderer.circle(menuX + menuW - 105, menuY + menuH + 48, 30, 215, 96, 255, 3, 0, 1)
+                renderer.circle(CurrentDataSpotify.device.volume_percent/100*80 + menuX + menuW - 105, menuY + menuH + 48, 255, 255, 255, 255, 6, 0, 1)
+                surface.draw_filled_rect(menuX + menuW - 106, menuY + menuH + 45, 80/100*CurrentDataSpotify.device.volume_percent, 6, 30, 215, 96, 255)
+                VolumeSpeaker:draw(menuX + menuW - 140, menuY + menuH + 38, 20, 20, 255, 255, 255, 255)
+            end
+        else
+            if CurrentDataSpotify.device.volume_percent >= 1 then
+                renderer.circle(menuX + menuW - 105, menuY + menuH + 48, 150, 150, 150, 255, 3, 0, 1)
+            end    
+            if CurrentDataSpotify.device.volume_percent == 100 then
+                renderer.circle(CurrentDataSpotify.device.volume_percent/100*80 + menuX + menuW - 106, menuY + menuH + 48, 150, 150, 150, 255, 3, 0, 1)
+            else
+                renderer.circle(CurrentDataSpotify.device.volume_percent/100*80 + menuX + menuW - 105, menuY + menuH + 48, 150, 150, 150, 255, 3, 0, 1)
+            end
+            surface.draw_filled_rect(menuX + menuW - 106, menuY + menuH + 45, 80/100*CurrentDataSpotify.device.volume_percent, 6, 150, 150, 150, 255)
+            VolumeSpeaker:draw(menuX + menuW - 140, menuY + menuH + 38, 20, 20, 255, 255, 255, 150)
         end
 
         if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
@@ -1329,7 +1588,7 @@ function OnFrame()
 
     ShiftClick = client.key_state(0x10)
     if ui_get(MainCheckbox) and Authed then
-        local LClick = client.key_state(0x01)
+        LClick = client.key_state(0x01)
         local mousepos = { ui.mouse_position() }
         rawmouseposX = mousepos[1]
         rawmouseposY = mousepos[2]
@@ -1349,7 +1608,30 @@ function OnFrame()
 
         mouseposX = mousepos[1] - SpotifyIndicX
         mouseposY = mousepos[2] - SpotifyIndicY
-        if ui.is_menu_open() then Dragging(); UpdateElements() end
+        if ui.is_menu_open() then
+            
+            Dragging(); 
+            UpdateElements()
+
+            if ui_get(elements.MenuBarEnable) then
+                if UnlockReg == true and LClick then
+                    seekHandler()
+                elseif LClick == false and UnlockReg == true then
+                    Seek(SeekedTime)
+                    UnlockReg = false
+                    UpdateWaitCheck = false
+                end
+
+                if UnlockReg2 == true and LClick then
+                    volumeHandler()
+                elseif LClick == false and UnlockReg2 == true then
+                    kanker = true
+                    ChangeVolume(ScrolledVolume)
+                    UnlockReg2 = false
+                    UpdateWaitCheck = false
+                end
+            end
+        end
 
         if ui_get(elements.ControlSwitch) then
             if NewVolume >= 100 then 
@@ -1359,7 +1641,6 @@ function OnFrame()
             end 
             MusicControls()
             gaySexgamer()
-            VolumeHandler()
             if ui_get(elements.PlayPause) or ui_get(elements.SkipSong) or ui_get(elements.PreviousSong) or ui_get(elements.SmartControls) then
                 ControlCheck = true
             else
