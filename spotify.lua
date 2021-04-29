@@ -1647,6 +1647,7 @@ function OnFrame()
             end 
             MusicControls()
             gaySexgamer()
+            VolumeHandler()
             if ui_get(elements.PlayPause) or ui_get(elements.SkipSong) or ui_get(elements.PreviousSong) or ui_get(elements.SmartControls) then
                 ControlCheck = true
             else
