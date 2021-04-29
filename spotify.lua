@@ -1547,7 +1547,7 @@ function SpotifyClantag()
     local splitClantagArtist = splitByChunk(ArtistName, 15)
     if SongName:len() > 15 and ArtistName:len() < 15 then
       clantagGlizzySweat = {"Listening to", splitClantagName[1], splitClantagName[2], "by", ArtistName, ArtistName}
-    elseif SongName:len() > 15 and ArtistName:len() > 15 and 
+    elseif SongName:len() > 15 and ArtistName:len() > 15 then 
       clantagGlizzySweat = {"Listening to", splitClantagName[1], splitClantagName[2], "by", splitClantagArtist[1], splitClantagArtist[2]}
     elseif SongName:len() < 15 and ArtistName:len() > 15 then
         clantagGlizzySweat = {"Listening to", SongName, SongName, "by", splitClantagArtist[1], splitClantagArtist[2]}
