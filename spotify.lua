@@ -1543,11 +1543,16 @@ end
   
 function SpotifyClantag()
     if not ui_get(elements.ClantagCheckbox) then return end
-    local splitClantag = splitByChunk(SongName, 15)
-    if SongName:len() > 15 then
-      clantagGlizzySweat = {"Listening to", splitClantag[1], splitClantag[2], "by", ArtistName, ArtistName}
-    else
-      clantagGlizzySweat = {"Listening to", SongName, SongName, "by", ArtistName, ArtistName}
+    local splitClantagName = splitByChunk(SongName, 15)
+    local splitClantagArtist = splitByChunk(ArtistName, 15)
+    if SongName:len() > 15 and ArtistName:len() < 15 then
+      clantagGlizzySweat = {"Listening to", splitClantagName[1], splitClantagName[2], "by", ArtistName, ArtistName}
+    elseif SongName:len() > 15 and ArtistName:len() > 15 and 
+      clantagGlizzySweat = {"Listening to", splitClantagName[1], splitClantagName[2], "by", splitClantagArtist[1], splitClantagArtist[2]}
+    elseif SongName:len() < 15 and ArtistName:len() > 15 then
+        clantagGlizzySweat = {"Listening to", SongName, SongName, "by", splitClantagArtist[1], splitClantagArtist[2]}
+    elseif SongName:len() < 15 and ArtistName:len() < 15 then
+        clantagGlizzySweat = {"Listening to", SongName, SongName, "by", ArtistName, ArtistName}
     end
     local cur = math.floor(globals.tickcount() / 70) % #clantagGlizzySweat
     local clantag = clantagGlizzySweat[cur+1]
