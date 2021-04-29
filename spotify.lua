@@ -497,8 +497,6 @@ local elements = {
     ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Cover art"),
         CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Location", "Left", "Right"),
         SongDurationToggle = ui_new_checkbox("MISC", "Miscellaneous", "Song duration"),
-
-    DisplayConnected = ui_new_checkbox("MISC", "Miscellaneous", "Display connected account"),
     
     CustomColors = ui_new_checkbox("MISC", "Miscellaneous", "Custom colors"),
         ProgressGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient progress bar"),
@@ -534,7 +532,7 @@ local elements = {
         AdaptiveVolume = ui_new_slider("MISC", "Miscellaneous", "Decrease volume by % on voicechat", 0, 100, "off", true, "%", 1, { [0] = "off", [100] = "mute"}),
 
 
-    Clantag = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
+    ClantagCheckbox = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
     HigherUpdateRate = ui_new_checkbox("MISC", "Miscellaneous", "Higher update rate (experimental)"),
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
 }
@@ -629,7 +627,7 @@ function ShowMenuElements()
         ui_set_visible(elements.LabelGradientColour, true)
         ui_set_visible(elements.CustomColors, true)
         ui_set_visible(elements.ControlSwitch, true)
-        ui_set_visible(elements.Clantag, true)
+        ui_set_visible(elements.ClantagCheckbox, true)
         ui_set_visible(elements.MenuSize, true)
         ui_set_visible(elements.SongDurationToggle, true)
         ui_set_visible(elements.ResetAuth, true)
@@ -637,7 +635,6 @@ function ShowMenuElements()
         ui_set_visible(elements.HigherUpdateRate, true)
 
         if ui_get(elements.IndicType) == "Spotify" then
-            ui_set_visible(elements.DisplayConnected, false)
             ui_set_visible(elements.ArtButton, true)
             ui_set_visible(elements.WidthLock, ShiftClick)
             ui_set_visible(elements.MinimumWidth, true)
@@ -703,7 +700,6 @@ function ShowMenuElements()
             end
             
         elseif ui_get(elements.IndicType) == "Minimal" then
-            ui_set_visible(elements.DisplayConnected, true)
             ui_set_visible(elements.MinimumWidth, false)
             ui_set_visible(elements.ArtButton, false)
             ui_set_visible(elements.ProgressGradientSwitch, false)
@@ -1232,40 +1228,34 @@ local function DrawNowPlaying()
         end,
 
         Minimal = function()
-            if ui_get(elements.DisplayConnected) then
-                SpotifyScaleX = 150
-                SpotifyScaleY = 30
-            else
+            local dpiscaling = ui_get(ui.reference("MISC", "Settings", "DPI Scale"))
+            songartist, cbtanalcock = renderer.measure_text("b", "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)+10
+            if dpiscaling == "100%" then
                 SpotifyScaleX = 150
                 SpotifyScaleY = 15
+            elseif dpiscaling == "125%" then
+                SpotifyScaleX = 150
+                SpotifyScaleY = 17
+            elseif dpiscaling == "150%" then
+                SpotifyScaleX = 150
+                SpotifyScaleY = 20
+            elseif dpiscaling == "175%" then
+                SpotifyScaleX = 150
+                SpotifyScaleY = 22
+            elseif dpiscaling == "200%" then
+                SpotifyScaleX = 150
+                SpotifyScaleY = 25
             end
-            songartist = renderer.measure_text("b", "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)+10
-            usrnm = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
-            if CurrentDataSpotify.is_playing and songartist > usrnm then
-                textmeasurement = renderer.measure_text("b", "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)+10
-            elseif CurrentDataSpotify.is_playing and songartist < usrnm then
-                textmeasurement = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
-            elseif not CurrentDataSpotify.is_playing then
-                textmeasurement = renderer.measure_text("b", "Connected to: "..spotidata.display_name)+10
-            end
+            textmeasurement = renderer.measure_text("b", "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)+10
 
             renderer.gradient(SpotifyIndicX, SpotifyIndicY, textmeasurement, SpotifyScaleY+2, 22, 22, 22, 255, 22, 22, 22, 10, true)
             renderer.rectangle(SpotifyIndicX, SpotifyIndicY, 2, SpotifyScaleY+2, r, g, b, a)
             renderer.gradient(SpotifyIndicX, SpotifyIndicY, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*textmeasurement, 2, r, g, b, a, r, g, b, 0, true)
             renderer.gradient(SpotifyIndicX, SpotifyIndicY+SpotifyScaleY, CurrentDataSpotify.progress_ms/CurrentDataSpotify.item.duration_ms*textmeasurement, 2, r, g, b, a, r, g, b, 0, true)
-            if ui_get(elements.DisplayConnected) then
-                renderer.text(SpotifyIndicX+5, SpotifyIndicY+5, 255, 255, 255, 255, "b", 0, "Connected to: "..spotidata.display_name)
-                if CurrentDataSpotify.is_playing then
-                    renderer.text(SpotifyIndicX+5, SpotifyIndicY+15, 255, 255, 255, 255, "b", 0, "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)
-                else
-                    renderer.text(SpotifyIndicX+5, SpotifyIndicY+15, 255, 255, 255, 255, "b", 0, "Paused")
-                end
+            if CurrentDataSpotify.is_playing then
+                renderer.text(SpotifyIndicX+5, SpotifyIndicY+2, 255, 255, 255, 255, "bd", 0, "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)
             else
-                if CurrentDataSpotify.is_playing then
-                    renderer.text(SpotifyIndicX+5, SpotifyIndicY+2, 255, 255, 255, 255, "b", 0, "Now Playing: "..CurrentDataSpotify.item.name.." by "..CurrentDataSpotify.item.artists[1].name)
-                else
-                    renderer.text(SpotifyIndicX+5, SpotifyIndicY+2, 255, 255, 255, 255, "b", 0, "Paused")
-                end
+                renderer.text(SpotifyIndicX+5, SpotifyIndicY+2, 255, 255, 255, 255, "bd", 0, "Paused")
             end
         end
     }
@@ -1543,14 +1533,25 @@ function drawHUD()
     end
 end
 
-local clantagduration = 70
-local clantag_prev
+local function splitByChunk(text, chunkSize)
+    local s = {}
+    for i=1, #text, chunkSize do
+        s[#s+1] = text:sub(i,i+chunkSize - 1)
+    end
+    return s
+end
+  
 function SpotifyClantag()
-    if CurrentDataSpotify == nil then return end
-    clantags = {"Listening to", CurrentDataSpotify.item.name, "by", CurrentDataSpotify.item.artists[1].name}
-    local cur = math.floor(globals.tickcount() / clantagduration) % #clantags
-    clantag = clantags[cur+1]
-
+    if not ui_get(elements.ClantagCheckbox) then return end
+    local splitClantag = splitByChunk(SongName, 15)
+    if SongName:len() > 15 then
+      clantagGlizzySweat = {"Listening to", splitClantag[1], splitClantag[2], "by", ArtistName, ArtistName}
+    else
+      clantagGlizzySweat = {"Listening to", SongName, SongName, "by", ArtistName, ArtistName}
+    end
+    local cur = math.floor(globals.tickcount() / 70) % #clantagGlizzySweat
+    local clantag = clantagGlizzySweat[cur+1]
+  
     if clantag ~= clantag_prev then
         clantag_prev = clantag
         client.set_clan_tag(clantag)
@@ -1604,7 +1605,7 @@ function OnFrame()
         end
 
         if ui_get(elements.IndicType) == "Spotify" then CustomLayout() end
-        if ui_get(elements.Clantag) then SpotifyClantag() end
+        if ui_get(elements.ClantagCheckbox) then SpotifyClantag() end
 
         mouseposX = mousepos[1] - SpotifyIndicX
         mouseposY = mousepos[2] - SpotifyIndicY
