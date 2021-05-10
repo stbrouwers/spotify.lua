@@ -587,11 +587,7 @@ cfg_window_position_x:SetVisible(false)
 cfg_window_position_y:SetVisible(false)
 cfg_deauthorize:SetVisible(false)
 
-local auth_code = "Basic ZDc5Y2ZkOTJmYjY2NGExZDllNTRmODYwN2ViMzhlODE6MWY0Zjk5M2JlMjA0NDhhNDg3MzkzYWFiN2UwNmE1YmI="
-local uri = "http://localhost:8888/callback"
 local authURL = "https://spotify.stbrouwers.cc/"
-local scope = "user-read-playback-state user-modify-playback-state"
-local query = "https://accounts.spotify.com/authorize?client_id=d79cfd92fb664a1d9e54f8607eb38e81&response_type=code&redirect_uri=".. uri .. "&scope=" .. scope
 
 local font_song = g_Render:InitFont("Verdana", font_sizes.song)
 local font_artist = g_Render:InitFont("Verdana", font_sizes.artist)
@@ -612,6 +608,8 @@ local image_volume = g_Render:LoadImage(image_volume_bytes, Vector2.new(64, 64))
 
 local input = InputSystem.init()
 
+local access_token_max_retries = 5
+local access_token_retries = 0
 local access_token = nil
 local refresh_token = nil
 local song_info = nil
@@ -628,7 +626,6 @@ local current_index = 1
 local old_tickcount = g_GlobalVars.tickcount
 local e_repeat_state = {"off", "context", "track"}
 local e_repeate_index = {["off"] = 1, ["context"] = 2, ["track"] = 3}
-local current_state = e_repeat_state[1]
 
 local function get_clipboard_text()
 	local length = func_get_clipboard_text_count(vgui_system010_class)
@@ -793,11 +790,11 @@ local function get_song_duration()
 end
 
 local getAccessToken = Timer.create(1800, function()
-    if not auth_code or not refresh_token then return false end
+    if not refresh_token then return false end
 
     local response = g_Panorama:Exec([[
         if (typeof accessToken === "undefined") {
-            var accessToken = "";
+            var accessToken = "defined";
         }
         
         $.AsyncWebRequest("https://spotify.stbrouwers.cc/refresh_token?refresh_token=]].. refresh_token .. [[", {
@@ -817,7 +814,7 @@ local getAccessToken = Timer.create(1800, function()
         accessToken;
     ]])
 
-    if response and response ~= "" then 
+    if response and response ~= "" and response ~= "defined" then 
         if not successful_auth then
             local auth_file = FileSystem.open(file_path, "wb", "GAME")
             auth_file:write(Cryption.encode(refresh_token))
@@ -830,16 +827,18 @@ local getAccessToken = Timer.create(1800, function()
         end
 
         access_token = response
+        access_token_retries = 0
         return true
-    else
+    elseif response ~= "defined" and access_token_retries >= access_token_max_retries then
         refresh_token = nil
         print("Invalid auth code!")
+        access_token_retries = 0
+    else
+        access_token_retries = access_token_retries + 1
     end
 
     return 1.1
 end)
-
-local has_been_called = false
 
 local getSongInfo = Timer.create(2.0, function()
     if not access_token then return false end
