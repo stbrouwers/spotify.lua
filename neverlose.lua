@@ -1,4 +1,5 @@
 -- This is a fucking mess but whatever I guess
+
 local ffi = require("ffi")
 
 ffi.cdef[[
@@ -514,7 +515,7 @@ local func_get_clipboard_text = ffi.cast("int(__thiscall*)(void*, int, const cha
 
 local screen_size = g_EngineClient:GetScreenSize()
 local cfg_path = FileSystem.get_neverlose_path()
-local file_path = cfg_path .. "spotify"
+local file_path = cfg_path .. "spotifyV1_5"
 FileSystem.add_search_path(cfg_path, "GAME", 0)
 
 local function table_clone(orig)
@@ -760,126 +761,6 @@ local function render_text_width_font(text, pos, clr, size, max_width, font, out
     g_Render:Text(output, pos, clr, size, font, out)
 end
 
-
-
-local function previousSong(device)
-    g_Panorama:Exec([[
-        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/previous?device_id=]] .. device .. [[", {
-            ["type"]: "POST", 
-            ["headers"]: {
-                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
-                ["Host"]: "api.spotify.com",
-                ["Content-Type"]: "application/x-www-form-urlencoded",
-                ["Content-Length"]: 0
-            }
-        });
-    ]])
-end
-
-local function skipSong(device)
-    g_Panorama:Exec([[
-        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/next?device_id=]] .. device .. [[", {
-            ["type"]: "POST", 
-            ["headers"]: {
-                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
-                ["Host"]: "api.spotify.com",
-                ["Content-Type"]: "application/x-www-form-urlencoded",
-                ["Content-Length"]: 0
-            }
-        });
-    ]])
-end
-
-local function updateVolume(device, volume)
-    g_Panorama:Exec([[
-        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/volume?volume_percent=]] .. tostring(math.min(math.max(0, volume), 100)) .. "&device_id=" .. device .. [[", {
-            ["type"]: "PUT", 
-            ["headers"]: {
-                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
-                ["Host"]: "api.spotify.com",
-                ["Content-Type"]: "application/x-www-form-urlencoded",
-                ["Content-Length"]: 0
-            }
-        });
-    ]])
-end
-
-local function changeSongPosition(device, position)
-    g_Panorama:Exec([[
-        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/seek?position_ms=]] .. tostring(position) .. "&device_id=" .. device .. [[", {
-            ["type"]: "PUT", 
-            ["headers"]: {
-                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
-                ["Host"]: "api.spotify.com",
-                ["Content-Type"]: "application/x-www-form-urlencoded",
-                ["Content-Length"]: 0
-            }
-        });
-    ]])
-end
-
-local function setShuffle(device, shouldShuffle)
-    g_Panorama:Exec([[
-        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/shuffle?state=]] .. tostring(shouldShuffle) .. "&device_id=" .. device .. [[", {
-            ["type"]: "PUT", 
-            ["headers"]: {
-                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
-                ["Host"]: "api.spotify.com",
-                ["Content-Type"]: "application/x-www-form-urlencoded",
-                ["Content-Length"]: 0
-            }
-        });
-    ]])
-end
-
-local function setRepeat(device, repeat_state)
-    g_Panorama:Exec([[
-        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/repeat?state=]] .. repeat_state .. "&device_id=" .. device .. [[", {
-            ["type"]: "PUT", 
-            ["headers"]: {
-                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
-                ["Host"]: "api.spotify.com",
-                ["Content-Type"]: "application/x-www-form-urlencoded",
-                ["Content-Length"]: 0
-            }
-        });
-    ]])
-end
-
-local function pauseSong(device, shouldPause)
-    if shouldPause then
-        g_Panorama:Exec([[
-            $.AsyncWebRequest("https://api.spotify.com/v1/me/player/pause?device_id=]] .. device .. [[", {
-                ["type"]: "PUT", 
-                ["headers"]: {
-                    ["Authorization"]: "Bearer ]] .. access_token .. [[", 
-                    ["Host"]: "api.spotify.com",
-                    ["Content-Type"]: "application/x-www-form-urlencoded",
-                    ["Content-Length"]: 0
-                },
-                ["error"]: function(response) {
-                    $.Msg(response);
-                }
-            });
-        ]])
-    else
-        g_Panorama:Exec([[
-            $.AsyncWebRequest("https://api.spotify.com/v1/me/player/play?device_id=]] .. device .. [[", {
-                ["type"]: "PUT", 
-                ["headers"]: {
-                    ["Authorization"]: "Bearer ]] .. access_token .. [[", 
-                    ["Host"]: "api.spotify.com",
-                    ["Content-Type"]: "application/x-www-form-urlencoded",
-                    ["Content-Length"]: 0
-                },
-                ["error"]: function(response) {
-                    $.Msg(response);
-                }
-            });
-        ]])
-    end
-end
-
 local function get_song_title()
     local title_text = song_info.item.name
     local title_size = g_Render:CalcTextSize(song_info.item.name, font_sizes.song, font_song)
@@ -958,10 +839,12 @@ local getAccessToken = Timer.create(1800, function()
     return 1.1
 end)
 
-local getSongInfo = Timer.create(1.0, function()
+local has_been_called = false
+
+local getSongInfo = Timer.create(2.0, function()
     if not access_token then return false end
 
-    local response =  g_Panorama:Exec([[
+    local response = g_Panorama:Exec([[
         if (typeof songInfo === 'undefined')
             var songInfo = "";
 
@@ -973,7 +856,7 @@ local getSongInfo = Timer.create(1.0, function()
                 ["Content-Type"]: "application/json",
             },
             ["error"]: function(response) {
-                songInfo = "";
+                songInfo = "error";
             },
             ["success"]: function(response) {
                 var songInfoJson = response;
@@ -998,12 +881,13 @@ local getSongInfo = Timer.create(1.0, function()
 
 
     -- No idea what i did there
-    if response and response ~= "" and string.find(response, "device") ~= nil then
+    if response and response ~= "" and response ~= "complete" and string.find(response, "device") ~= nil then
         local info = JSON.parse(response)
 
         if info and info.timestamp and info.currently_playing_type ~= "ad" and info.currently_playing_type ~= "unknown" then
             song_info = info
         end
+
     end
 
     return true
@@ -1036,6 +920,149 @@ local updateClantag = Timer.create(0.25, function()
 
     return true
 end)
+
+local function previousSong(device)
+    g_Panorama:Exec([[
+        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/previous?device_id=]] .. device .. [[", {
+            ["type"]: "POST", 
+            ["headers"]: {
+                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
+                ["Host"]: "api.spotify.com",
+                ["Content-Type"]: "application/x-www-form-urlencoded",
+                ["Content-Length"]: 0
+            },
+            ["complete"]: function(response) {
+                songInfo = "complete";
+            }
+        });
+    ]])
+
+end
+
+local function skipSong(device)
+    g_Panorama:Exec([[
+        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/next?device_id=]] .. device .. [[", {
+            ["type"]: "POST", 
+            ["headers"]: {
+                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
+                ["Host"]: "api.spotify.com",
+                ["Content-Type"]: "application/x-www-form-urlencoded",
+                ["Content-Length"]: 0
+            },
+            ["complete"]: function(response) {
+                songInfo = "complete";
+            }
+        });
+    ]])
+
+end
+
+local function updateVolume(device, volume)
+    g_Panorama:Exec([[
+        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/volume?volume_percent=]] .. tostring(math.min(math.max(0, volume), 100)) .. "&device_id=" .. device .. [[", {
+            ["type"]: "PUT", 
+            ["headers"]: {
+                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
+                ["Host"]: "api.spotify.com",
+                ["Content-Type"]: "application/x-www-form-urlencoded",
+                ["Content-Length"]: 0
+            },
+            ["complete"]: function(response) {
+                songInfo = "complete";
+            }
+        });
+    ]])
+
+end
+
+local function changeSongPosition(device, position)
+    g_Panorama:Exec([[
+        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/seek?position_ms=]] .. tostring(position) .. "&device_id=" .. device .. [[", {
+            ["type"]: "PUT", 
+            ["headers"]: {
+                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
+                ["Host"]: "api.spotify.com",
+                ["Content-Type"]: "application/x-www-form-urlencoded",
+                ["Content-Length"]: 0
+            },
+            ["complete"]: function(response) {
+                songInfo = "complete";
+            }
+        });
+    ]])
+
+end
+
+local function setShuffle(device, shouldShuffle)
+    g_Panorama:Exec([[
+        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/shuffle?state=]] .. tostring(shouldShuffle) .. "&device_id=" .. device .. [[", {
+            ["type"]: "PUT", 
+            ["headers"]: {
+                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
+                ["Host"]: "api.spotify.com",
+                ["Content-Type"]: "application/x-www-form-urlencoded",
+                ["Content-Length"]: 0
+            },
+            ["complete"]: function(response) {
+                songInfo = "complete";
+            }
+        });
+    ]])
+
+end
+
+local function setRepeat(device, repeat_state)
+    g_Panorama:Exec([[
+        $.AsyncWebRequest("https://api.spotify.com/v1/me/player/repeat?state=]] .. repeat_state .. "&device_id=" .. device .. [[", {
+            ["type"]: "PUT", 
+            ["headers"]: {
+                ["Authorization"]: "Bearer ]] .. access_token .. [[", 
+                ["Host"]: "api.spotify.com",
+                ["Content-Type"]: "application/x-www-form-urlencoded",
+                ["Content-Length"]: 0
+            },
+            ["complete"]: function(response) {
+                songInfo = "complete";
+            }
+        });
+    ]])
+
+end
+
+local function pauseSong(device, shouldPause)
+    if shouldPause then
+        g_Panorama:Exec([[
+            $.AsyncWebRequest("https://api.spotify.com/v1/me/player/pause?device_id=]] .. device .. [[", {
+                ["type"]: "PUT", 
+                ["headers"]: {
+                    ["Authorization"]: "Bearer ]] .. access_token .. [[", 
+                    ["Host"]: "api.spotify.com",
+                    ["Content-Type"]: "application/x-www-form-urlencoded",
+                    ["Content-Length"]: 0
+                },
+                ["complete"]: function(response) {
+                    songInfo = "complete";
+                }
+            });
+        ]])
+    else
+        g_Panorama:Exec([[
+            $.AsyncWebRequest("https://api.spotify.com/v1/me/player/play?device_id=]] .. device .. [[", {
+                ["type"]: "PUT", 
+                ["headers"]: {
+                    ["Authorization"]: "Bearer ]] .. access_token .. [[", 
+                    ["Host"]: "api.spotify.com",
+                    ["Content-Type"]: "application/x-www-form-urlencoded",
+                    ["Content-Length"]: 0
+                },
+                ["complete"]: function(response) {
+                    songInfo = "complete";
+                }
+            });
+        ]])
+    end
+
+end
 
 local function hsv_to_rgb(h, s, v, a)
     local r, g, b
@@ -1351,6 +1378,10 @@ cheat.RegisterCallback("draw", function()
 
     getAccessToken:update()
     getSongInfo:update()
+
+    if g_Panorama:Exec([[songInfo;]]) == "complete" then
+        getSongInfo.milliseconds = 0.2
+    end
 
     if not song_info then return end
     if song_info then
