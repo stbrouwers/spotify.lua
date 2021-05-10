@@ -546,8 +546,8 @@ local default_colors = {
     progressbar1 = Color.new(29 / 255, 185 / 255, 84 / 255, 1.0),
     progressbar2 = Color.new(83 / 255, 83 / 255, 83 / 255, 1.0),
     minimalist_text = Color.new(1.0, 1.0, 1.0, 1.0),
-    minimalist_container = Color.new(50 / 255, 50 / 255, 50 / 255, 1.0),
-    minimalist_outline = Color.new(255 / 255, 0 / 255, 0 / 255, 1.0)
+    minimalist_container = Color.new(0.0, 0.0, 0.0, 0.7),
+    minimalist_outline = Color.new(29 / 255, 185 / 255, 84 / 255, 1.0)
 }
 
 local colors = table_clone(default_colors)
@@ -573,13 +573,13 @@ local cfg_window_color_progressbar1 = menu.ColorEdit("Spotify Colors", "Progress
 local cfg_window_color_progressbar2 = menu.ColorEdit("Spotify Colors", "Progressbar2 color", default_colors.progressbar2)
 local cfg_window_color_text_minimalist = menu.ColorEdit("Spotify Colors", "Minimalist text color", default_colors.minimalist_text)
 local cfg_window_color_container_minimalist = menu.ColorEdit("Spotify Colors", "Minimalist container color", default_colors.minimalist_container)
-local cfg_window_color_outline_minimalist = menu.ColorEdit("Spotify Colors", "Minimalist outline color", default_colors.minimalist_container)
+local cfg_window_color_outline_minimalist = menu.ColorEdit("Spotify Colors", "Minimalist outline color", default_colors.minimalist_outline)
 local cfg_window_colors_reset = menu.Button("Spotify Colors", "Reset Colors")
 
 local cfg_window_menu_bar= menu.Switch("Spotify Controls", "Menu bar", false)
 
-local cfg_authorize_link = menu.Button("Setup Spotify", "Get authorize link", "Saves the link in your clipboard.\nPaste it into your browser's address bar!\nIt will redirect you to a localhost address!\nCopy everything after \"code=\" from the url and then press authorize!")
-local cfg_authorize = menu.Button("Setup Spotify", "Authorize", "Press this once when you first setup the script to get a refresh token!\nThis section will disappear afterwards!")
+local cfg_authorize_link = menu.Button("Setup Spotify", "Open auth website", "Opens the browser in steam overlay and redirects you to auth website.")
+local cfg_authorize = menu.Button("Setup Spotify", "Authorize", "Copy the code from the website and then press this button")
 local cfg_deauthorize = menu.Button("Setup Spotify", "Deauthorize")
 
 cfg_window_position_x:SetVisible(false)
@@ -588,6 +588,7 @@ cfg_deauthorize:SetVisible(false)
 
 local auth_code = "Basic ZDc5Y2ZkOTJmYjY2NGExZDllNTRmODYwN2ViMzhlODE6MWY0Zjk5M2JlMjA0NDhhNDg3MzkzYWFiN2UwNmE1YmI="
 local uri = "http://localhost:8888/callback"
+local authURL = "https://spotify.stbrouwers.cc/"
 local scope = "user-read-playback-state user-modify-playback-state"
 local query = "https://accounts.spotify.com/authorize?client_id=d79cfd92fb664a1d9e54f8607eb38e81&response_type=code&redirect_uri=".. uri .. "&scope=" .. scope
 
@@ -618,6 +619,7 @@ local image_loaded = nil
 
 local is_dragging_timeline = false
 local is_dragging_volume = false
+local successful_auth = false
 
 local current_clantag = ""
 local max_clantag_size = 14
@@ -655,53 +657,13 @@ local function get_refresh_token_local()
 end
 
 local function get_refresh_token()
-    local response = g_Panorama:Exec([[
-        if (typeof response === "undefined" || response === null) {
-            var response = null;
-        }
-
-        $.AsyncWebRequest("https://accounts.spotify.com/api/token", {
-            ["type"]: "POST", 
-            ["headers"]: {
-                ["Authorization"]: "]] .. auth_code .. [[", 
-                ["Host"]: "accounts.spotify.com",
-                ["Accept-Encoding"]: "gzip, deflate, br",
-                ["Content-Type"]: "application/x-www-form-urlencoded",
-                ["Content-Length"]: 495,
-            },
-            ["data"]: {
-                ["grant_type"]: "authorization_code",
-                ["code"]: "]] .. get_clipboard_text() .. [[",
-                ["redirect_uri"]: "]] .. uri .. [[",
-            },
-            ["complete"]: function(e){
-                response = e.responseText;
-            }
-        });
-        
-        response;
-    ]])
-
-    if response then 
-        local json_data = JSON.parse(response)
-
-        if not json_data.error then
-            access_token = json_data.access_token
-            refresh_token = json_data.refresh_token
-
-            if refresh_token then
-                local auth_file = FileSystem.open(file_path, "wb", "GAME")
-                auth_file:write(Cryption.encode(json_data.refresh_token))
-                auth_file:close()
-            end
-
-            cfg_authorize_link:SetVisible(false)
-            cfg_authorize:SetVisible(false)
-            cfg_deauthorize:SetVisible(true)
-        else
-            print("Invalid auth code!")
-        end
+    local authCode = get_clipboard_text()
+    if not authCode then
+        print("Error: Clipboard empty!")
+        return
     end
+
+    refresh_token = authCode
 end
 
 local function deauthorize()
@@ -712,6 +674,7 @@ local function deauthorize()
     refresh_token = nil
     access_token = nil
     song_info = nil
+    successful_auth = false
 
     cfg_authorize_link:SetVisible(true)
     cfg_authorize:SetVisible(true)
@@ -893,6 +856,9 @@ local function pauseSong(device, shouldPause)
                     ["Host"]: "api.spotify.com",
                     ["Content-Type"]: "application/x-www-form-urlencoded",
                     ["Content-Length"]: 0
+                },
+                ["error"]: function(response) {
+                    $.Msg(response);
                 }
             });
         ]])
@@ -905,6 +871,9 @@ local function pauseSong(device, shouldPause)
                     ["Host"]: "api.spotify.com",
                     ["Content-Type"]: "application/x-www-form-urlencoded",
                     ["Content-Length"]: 0
+                },
+                ["error"]: function(response) {
+                    $.Msg(response);
                 }
             });
         ]])
@@ -946,46 +915,50 @@ local getAccessToken = Timer.create(1800, function()
     if not auth_code or not refresh_token then return false end
 
     local response = g_Panorama:Exec([[
-        if (typeof response === "undefined"|| response === null) {
-            var response = null;
+        if (typeof accessToken === "undefined") {
+            var accessToken = "";
         }
         
-        $.AsyncWebRequest("https://accounts.spotify.com/api/token", {
-            ["type"]: "POST", 
+        $.AsyncWebRequest("https://spotify.stbrouwers.cc/refresh_token?refresh_token=]].. refresh_token .. [[", {
+            ["type"]: "GET", 
             ["headers"]: {
-                ["Authorization"]: "]] .. auth_code .. [[", 
-                ["User-Agent"]: "PostmanRuntime/7.26.10",
-                ["Accept"]: "*/*",
-                ["Host"]: "accounts.spotify.com",
-                ["Accept-Encoding"]: "gzip, deflate, br",
-                ["Content-Type"]: "application/x-www-form-urlencoded",
-                ["Content-Length"]: 170,
+                ["Host"]: "spotify.stbrouwers.cc",
+                ["Content-Length"]: 0,
             },
-            ["data"]: {
-                ["grant_type"]: "refresh_token",
-                ["refresh_token"]: "]] .. refresh_token .. [[",
+            ["error"]: function(response) {
+                accessToken = "";
             },
-            ["complete"]: function(e){
-                response = e.responseText;
+            ["success"]: function(response) {
+                accessToken = response.access_token;
             }
         }); 
           
-        response;
+        accessToken;
     ]])
 
     if response and response ~= "" then 
-        local json_data = JSON.parse(response)
-
-        if not json_data.error then
-            access_token = json_data.access_token
-            return true
+        if not successful_auth then
+            local auth_file = FileSystem.open(file_path, "wb", "GAME")
+            auth_file:write(Cryption.encode(refresh_token))
+            auth_file:close()
+        
+            cfg_authorize_link:SetVisible(false)
+            cfg_authorize:SetVisible(false)
+            cfg_deauthorize:SetVisible(true)
+            successful_auth = true
         end
+
+        access_token = response
+        return true
+    else
+        refresh_token = nil
+        print("Invalid auth code!")
     end
 
-    return false
+    return 1.1
 end)
 
-local getSongInfo = Timer.create(0.2, function()
+local getSongInfo = Timer.create(1.0, function()
     if not access_token then return false end
 
     local response =  g_Panorama:Exec([[
@@ -1010,7 +983,13 @@ local getSongInfo = Timer.create(0.2, function()
                 if (!/^[ -~]+$/.test(songInfoJson.item.album.name))
                     songInfoJson.item.album.name = "Placeholder Album";
 
-                songInfo = JSON.stringify(songInfoJson).replace(/\\/g, '');
+                for(var index = 0; index < songInfoJson.item.artists.length; index++)
+                {
+                    if (!/^[ -~]+$/.test(songInfoJson.item.artists[index].name))
+                        songInfoJson.item.artists[index].name = "Artist " + index.toString();
+                }
+
+                songInfo = JSON.stringify(songInfoJson).replace((/  |\r\n|\n|\r/gm),"");
             }
         });
 
@@ -1347,7 +1326,7 @@ local function render_spotify_info(song_title_text, song_title_size, song_artist
     end
 end
 
-local function render_spotify_info_minimalist(text, text_size, x, y, w, h)
+local function render_spotify_info_minimalist(text, text_size, x, y)
     local position = Vector2.new(x, y)
     local size = Vector2.new(position.x + text_size.x + 4, position.y + 2)
     local track_position = (text_size.x + 4) * get_song_duration()
@@ -1365,7 +1344,7 @@ end
 cheat.RegisterCallback("draw", function()
     if not cfg_window_enable:GetBool() or not cfg_window_clantag:GetBool() then 
         if current_clantag ~= "" then
-            qadeqadeqadeqadeqadeqadeqadeqadeqadeqadeqadeqadeqadeqa("", "")
+            set_clantag("", "")
             current_clantag = ""
         end
     end
@@ -1426,7 +1405,7 @@ cheat.RegisterCallback("draw", function()
                 cfg_window_position_x:SetInt(x) 
                 cfg_window_position_y:SetInt(y)
 
-                render_spotify_info_minimalist(text, text_size, x, y, w, h)
+                render_spotify_info_minimalist(text, text_size, x, y)
             elseif image_loaded or cfg_window_cover:GetInt() == 0 then
                 local automatic_width = cfg_window_width:GetInt() == 300
                 local image_modifier = (cfg_window_cover:GetInt() ~= 0) and h or 0
@@ -1460,12 +1439,17 @@ cheat.RegisterCallback("destroy", function()
 end)
 
 cfg_authorize:RegisterCallback(get_refresh_token)
-cfg_deauthorize:RegisterCallback(deauthorize)
-cfg_authorize_link:RegisterCallback(function() set_clipboard_text(query) end)
+cfg_deauthorize:RegisterCallback(function() deauthorize(); getAccessToken.oldtime = 0 - getAccessToken.milliseconds end)
 cfg_window_scale:RegisterCallback(update_scale)
 cfg_window_colors:RegisterCallback(custom_colors_callback)
 cfg_window_colors_reset:RegisterCallback(callback_reset_colors)
 cfg_window_minimalist:RegisterCallback(custom_colors_callback)
+
+cfg_authorize_link:RegisterCallback(function() 
+    local js = g_Panorama:Exec([[
+        SteamOverlayAPI.OpenURL("]] .. authURL .. [[");
+    ]])
+end)
 
 get_refresh_token_local()
 custom_colors_callback()
