@@ -38,7 +38,9 @@ local TitleFontHUD = surface.create_font("GothamBookItalic", 25, 900, 0x010)
 local ArtistFontHUD = surface.create_font("GothamBookItalic", 20, 600, 0x010)
 local DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 600, 0x010)
 local DurationFontHUD = surface.create_font("GothamBookItalic", 12, 900, 0x010)
+local MainElementFontHUD = surface.create_font("GothamBookItalic", 18, 600, 0x010)
 local VolumeFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
+
 
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
 local MenukeyReference = ui.reference("MISC", "Settings", "Menu key")
@@ -84,6 +86,7 @@ ShuffleState = false
 UpdateWaitCheck = false
 kanker = false
 MenuBarExtended = false
+SearchSelected = false
 
 SpotifyScaleX = sx/4.8
 SpotifyScaleY = sy/10.8
@@ -1361,6 +1364,7 @@ end
 
 function drawHUD()
     if not ui_get(elements.MenuBarEnable) then return end
+    if CurrentDataSpotify == nil then return end
     menuX, menuY = ui.menu_position()
     menuW, menuH = ui.menu_size()
     MouseHudPosX = rawmouseposX - menuX - (menuW / 2) 
@@ -1580,15 +1584,18 @@ function drawHUD()
             end
         else
             ExtendedMousePosX = rawmouseposX - menuX + 225
-            print(ExtendedMousePosX .. " | ".. MouseHudPosY)
+            ExtendedMousePosY = rawmouseposY - menuY
+            print(ExtendedMousePosX .. " | ".. MouseHudPosY .. " | " .. ExtendedMousePosY)
             local startposxtr = {
                 cvrtX = 0, cvrtY = -225,
-                xtbtnX = 192, xtbtnY = -217
+                xtbtnX = 192, xtbtnY = -217,
+                srchbrX = 20, srchbrY = 12
             }
     
             local endposxtr = {
                 cvrtX = 225, cvrtY = 0,
-                xtbtnX = 215, xtbtnY = -195
+                xtbtnX = 215, xtbtnY = -195,
+                srchbrX = 200, srchbrY = 40
             }
 
             if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
@@ -1617,8 +1624,44 @@ function drawHUD()
                 renderer.line(menuX - 20, menuY + menuH - 200, menuX - 12, menuY + menuH - 209, 255, 255, 255, 150)
                 renderer.line(menuX - 20, menuY + menuH - 200, menuX - 28, menuY + menuH - 209, 255, 255, 255, 150)
             end
-            --Playlists/contents
+            --Playlist layout
             surface.draw_filled_rect(menuX - 225, menuY, 225, menuH - 225, 19, 19, 19, 255)
+            surface.draw_line(menuX - 210, menuY + 50, menuX - 25, menuY + 50, 50, 50, 50, 255)
+
+            if SearchSelected == false then
+                if ExtendedMousePosX >= startposxtr.srchbrX and ExtendedMousePosX <= endposxtr.srchbrX and ExtendedMousePosY >= startposxtr.srchbrY and ExtendedMousePosY <= endposxtr.srchbrY then
+                    surface.draw_text(menuX - 180, menuY + 17, 255, 255, 255, 255, MainElementFontHUD, "Search")
+                    renderer.circle_outline(menuX - 197, menuY + 24, 255, 255, 255, 255, 7, 0, 1, 2)
+                    renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 255, 255, 255, 255)
+
+                    if LClick then
+                        julliekankermoeders = true
+                    elseif julliekankermoeders == true then
+                        julliekankermoeders = false
+                        SearchSelected = true
+                    end
+                else
+                    surface.draw_text(menuX - 180, menuY + 17, 150, 150, 150, 255, MainElementFontHUD, "Search")
+                    renderer.circle_outline(menuX - 197, menuY + 24, 150, 150, 150, 255, 7, 0, 1, 2)
+                    renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 150, 150, 150, 255)
+                end
+            elseif SearchSelected == true then
+                if ExtendedMousePosX >= startposxtr.srchbrX and ExtendedMousePosX <= endposxtr.srchbrX and ExtendedMousePosY >= startposxtr.srchbrY and ExtendedMousePosY <= endposxtr.srchbrY then
+
+                    if LClick then
+                        julliekankermoeders = true
+                    elseif julliekankermoeders == true then
+                        julliekankermoeders = false
+                        SearchSelected = false
+                    end
+                end
+
+                surface.draw_filled_rect(menuX - 210, menuY + 11, 185, 30, 50, 50, 50, 255)
+                surface.draw_text(menuX - 180, menuY + 17, 255, 255, 255, 255, MainElementFontHUD, "Search")
+                renderer.circle_outline(menuX - 197, menuY + 24, 255, 255, 255, 255, 7, 0, 1, 2)
+                renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 255, 255, 255, 255)
+                DrawSubtab("search")
+            end
         end
     end
 end
@@ -1660,6 +1703,14 @@ function MenuBarAnimHandler()
     surface.draw_filled_rect(menuX - 225, menuY, 225, menuH - 225, 19, 19, 19, 255/200*AnimSizePerc)
 end
 
+function DrawSubtab(subtype)
+    switch(subtype) {
+        search = function()
+            surface.draw_filled_rect(menuX + menuW, menuY, 350, menuH+97, 25, 25, 25, 255)
+        end
+    }
+end
+
 local function splitByChunk(text, chunkSize)
     local s = {}
     for i=1, #text, chunkSize do
@@ -1696,7 +1747,6 @@ function OnFrame()
         UpdateInf()
         last_update = client.unix_time()
         UpdateCount = UpdateCount + 1
-        if CurrentDataSpotify == nil then return end
         
         ui_set(elements.SessionUpdates, "Total updates this session: " .. UpdateCount)
         ui_set(elements.TotalErrors, "Errors this session: " .. TotalErrors)
