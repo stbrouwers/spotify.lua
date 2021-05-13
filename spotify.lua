@@ -88,6 +88,8 @@ UpdateWaitCheck = false
 kanker = false
 MenuBarExtended = false
 SearchSelected = false
+PlaylistSelected = false
+PlaylistLimitReached = false
 
 SpotifyScaleX = sx/4.8
 SpotifyScaleY = sy/10.8
@@ -177,8 +179,11 @@ else
     end
 end
 
+Playlistcache = database_read("playlistcache")
+
 if database_read("savedplaylists") == nil then
     Playlists = {}
+    Playlistcache = ""
 else
     Playlists = database_read("savedplaylists")
     for i, id in ipairs(Playlists) do
@@ -186,6 +191,7 @@ else
     end
 end
 print(inspect(database_read("savedplaylists")))
+
 
 switch = function(check)                                        
     return function(cases)
@@ -555,7 +561,7 @@ local elements = {
     ClantagCheckbox = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
     HigherUpdateRate = ui_new_checkbox("MISC", "Miscellaneous", "Higher update rate (experimental)"),
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
-    KankerOp = ui_new_button("MISC", "Miscellaneous", "Kanker op", function() database_write("savedplaylists", nil) Playlists = {} end),
+    KankerOp = ui_new_button("MISC", "Miscellaneous", "Reset playlists", function() database_write("savedplaylists", nil) Playlists = {} PlayListCount = 0 PlaylistLimitReached = false currplaylist = {} TrackCount = 0 database_write("playlistcache", "") playlistcache = "" end),
 }
 
 function ChangeVolume(Svol) 
@@ -621,7 +627,7 @@ end
 
 function InitPlaylist(id)
     if id == nil then client.color_log(255, 0, 0, "Failed to add playlist. Make sure that you have your Playlist link in your clipboard, and that the formatting is correct. (https://open.spotify.com/playlist/6piHLVTmzq8nTix2wIlM8x?si=10c8288bd6fc4f94)") return end
-
+    if string.find(Playlistcache, id) ~= nil then client.color_log(255, 0, 0, "You have already added this playlist!") return end
     http.get("https://api.spotify.com/v1/playlists/" .. id .. "?access_token=" .. apikey .. "&fields=name", function(s, r) -- tracks.items(track(name%2C%20uri%2C%20images%2C%20album.artists%2C%20duration_ms))%2C%20
         if not s or r.status ~= 200 then
             client.color_log(255, 0, 0, "Failed to add playlist. Make sure that you have your Playlist link in your clipboard, and that the formatting is correct. (https://open.spotify.com/playlist/6piHLVTmzq8nTix2wIlM8x?si=10c8288bd6fc4f94)")
@@ -630,20 +636,21 @@ function InitPlaylist(id)
         PlayListCount = PlayListCount + 1
         local temp = json.parse(r.body)
         table.insert(Playlists, {id = PlayListCount, PlaylistName = temp.name .. "," .. id})
-
+        Playlistcache = Playlistcache .. id
     end)
 end
 
 function LoadPlaylist(uri)
     local jekanker, moeder = string.match(uri, "(.*),(.*)")
-    http.get("https://api.spotify.com/v1/playlists/".. moeder .."/tracks?market=US&fields=items(track(name%2C%20uri%2C%20images%2C%20album.artists%2C%20duration_ms))&limit=100&offset=0" .. "&access_token=" .. apikey, function(s, r)
+    currplaylist = {}
+    http.get("https://api.spotify.com/v1/playlists/".. moeder .."/tracks?market=US&limit=100&offset=0" .. "&access_token=" .. apikey, function(s, r)
         if not s or r.status ~= 200 then return end
         local temp = json.parse(r.body)
         for i, track in ipairs(temp.items) do
             TrackCount = TrackCount + 1
-            print(TrackCount)
+            table.insert(currplaylist, {id = TrackCount, SongDetails = temp.items[i].track.name .. "^" .. temp.items[i].track.artists[1].name .. "^" .. temp.items[i].track.duration_ms .. "^" .. temp.items[i].track.uri .. "^" .. temp.items[i].track.album.images[3].url})
+            PlaylistSelected = true
         end
-        TrackCount = 0
     end)
 end
 
@@ -689,7 +696,6 @@ function ShowMenuElements()
         ui_set_visible(elements.ResetAuth, true)
         ui_set_visible(elements.MenuBarEnable, true)
         ui_set_visible(elements.HigherUpdateRate, true)
-        ui_set_visible(elements.KankerOp, true)
 
         if ui_get(elements.IndicType) == "Spotify" then
             ui_set_visible(elements.ArtButton, true)
@@ -814,8 +820,10 @@ function ShowMenuElements()
 
         if ui_get(elements.MenuBarEnable) then
             ui_set_visible(elements.HideOriginIndic, true)
+            ui_set_visible(elements.KankerOp, true)
         else
             ui_set_visible(elements.HideOriginIndic, false)
+            ui_set_visible(elements.KankerOp, false)
         end
                                                                                     
         if ui_get(elements.ControlSwitch) then
@@ -1678,7 +1686,7 @@ function drawHUD()
             surface.draw_line(menuX - 210, menuY + 50, menuX - 25, menuY + 50, 50, 50, 50, 255)
 
             --Searchbar
-            if SearchSelected == false then
+            if SearchSelected == false and PlaylistSelected == false then
                 if ExtendedMousePosX >= startposxtr.srchbrX and ExtendedMousePosX <= endposxtr.srchbrX and ExtendedMousePosY >= startposxtr.srchbrY and ExtendedMousePosY <= endposxtr.srchbrY then
                     surface.draw_text(menuX - 180, menuY + 17, 255, 255, 255, 255, MainElementFontHUD, "Search")
                     renderer.circle_outline(menuX - 197, menuY + 24, 255, 255, 255, 255, 7, 0, 1, 2)
@@ -1695,7 +1703,7 @@ function drawHUD()
                     renderer.circle_outline(menuX - 197, menuY + 24, 150, 150, 150, 255, 7, 0, 1, 2)
                     renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 150, 150, 150, 255)
                 end
-            elseif SearchSelected == true then
+            elseif SearchSelected then
                 if ExtendedMousePosX >= startposxtr.srchbrX and ExtendedMousePosX <= endposxtr.srchbrX and ExtendedMousePosY >= startposxtr.srchbrY and ExtendedMousePosY <= endposxtr.srchbrY then
 
                     if LClick then
@@ -1711,26 +1719,35 @@ function drawHUD()
                 renderer.circle_outline(menuX - 197, menuY + 24, 255, 255, 255, 255, 7, 0, 1, 2)
                 renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 255, 255, 255, 255)
                 DrawSubtab("search")
+
+            elseif PlaylistSelected then
+                DrawSubtab("playlist")
+                surface.draw_text(menuX - 180, menuY + 17, 150, 150, 150, 255, MainElementFontHUD, "Search")
+                renderer.circle_outline(menuX - 197, menuY + 24, 150, 150, 150, 255, 7, 0, 1, 2)
+                renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 150, 150, 150, 255)
             end
 
             --add playlist button
-            if ExtendedMousePosX >= startposxtr.nwplylstX and ExtendedMousePosX <= endposxtr.nwplylstX and ExtendedMousePosY >= startposxtr.nwplylstY and ExtendedMousePosY <= endposxtr.nwplylstY then
-                if LClick then
-                    julliekankermoeders = true
-                    surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 150, 150, 150, 150, MainElementFontHUD, "+  Add Playlist")
-                elseif julliekankermoeders == true then
-                    julliekankermoeders = false
-                    SearchSelected = false
-                    local CopiedId = CP()
-                    local ParsedId = string.gsub(CopiedId, "https://open.spotify.com/playlist/", "")
-                    local jekanker, moeder = string.match(ParsedId, "(.*)?(.*)")
-                    InitPlaylist(jekanker)
+            if PlaylistLimitReached == false then
+                if ExtendedMousePosX >= startposxtr.nwplylstX and ExtendedMousePosX <= endposxtr.nwplylstX and ExtendedMousePosY >= startposxtr.nwplylstY and ExtendedMousePosY <= endposxtr.nwplylstY then
+                    if LClick then
+                        julliekankermoeders = true
+                        surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 150, 150, 150, 150, MainElementFontHUD, "+  Add Playlist")
+                    elseif julliekankermoeders == true then
+                        julliekankermoeders = false
+                        SearchSelected = false
+                        local CopiedId = CP()
+                        local ParsedId = string.gsub(CopiedId, "https://open.spotify.com/playlist/", "")
+                        local jekanker, moeder = string.match(ParsedId, "(.*)?(.*)")
+                        InitPlaylist(jekanker)
+                    else
+                        surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 255, 255, 255, 255, MainElementFontHUD, "+  Add Playlist")
+                    end
                 else
-                    surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 255, 255, 255, 255, MainElementFontHUD, "+  Add Playlist")
+                    surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 150, 150, 150, 255, MainElementFontHUD, "+  Add Playlist")
                 end
-            else
-                surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 150, 150, 150, 255, MainElementFontHUD, "+  Add Playlist")
             end
+
             local DrawnPlaylist = 0
             for i, id in ipairs(Playlists) do
                 local jekanker, moeder = string.match(Playlists[i].PlaylistName, "(.*),(.*)")
@@ -1790,9 +1807,16 @@ function MenuBarAnimHandler()
 end
 
 function DrawSubtab(subtype)
+    surface.draw_filled_rect(menuX + menuW, menuY, 350, menuH+97, 25, 25, 25, 255)
+
     switch(subtype) {
         search = function()
-            surface.draw_filled_rect(menuX + menuW, menuY, 350, menuH+97, 25, 25, 25, 255)
+
+        end,
+
+        playlist = function()
+            --table.insert(currplaylist, {id = TrackCount, SongDetails = temp.items[i].track.name .. "^" .. temp.items[i].track.artists[1].name .. "^" .. temp.items[i].track.duration_ms .. "^" .. temp.items[i].track.uri .. "^" .. temp.items[i].track.album.images[3].url})
+            local n, a, d, u, i = string.match(currplaylist[1].SongDetails, "(.*)^(.*)^(.*)^(.*)^(.*)")
         end
     }
 end
@@ -1899,6 +1923,7 @@ function OnFrame()
                     ChangeVolume(ScrolledVolume)
                     UnlockReg2 = false
                 end
+                if PlayListCount >= 8 then PlaylistLimitReached = true end
                 drawHUD()
             end
         end
@@ -1974,4 +1999,5 @@ client.set_event_callback('shutdown', function()
     database_write("StoredKey", apikey)
     database_write("StoredKey2", refreshkey)
     database_write("savedplaylists", Playlists)
+    database_write("playlistcache", Playlistcache)
 end)
