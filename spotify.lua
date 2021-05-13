@@ -130,11 +130,6 @@ local ShuffleUrl = "https://i.imgur.com/8hjJTCO.png"
 local ShuffleActiveUrl = "https://i.imgur.com/HNVpf4j.png"
 local VolumeSpeakerUrl = "https://i.imgur.com/rj2IJfJ.png"
 
-Playlists = {
-
-
-}
-
 http.get(LoopUrl, function(success, response)
     if not success or response.status ~= 200 then
       return
@@ -170,6 +165,8 @@ http.get(VolumeSpeakerUrl, function(success, response)
     VolumeSpeaker = images.load_png(response.body)
 end)
 
+currplaylist = {}
+
 if database_read("previous_posX") == nil then
     database_write("previous_posX", SpotifyIndicX)
     database_write("previous_posY", SpotifyIndicY)
@@ -179,6 +176,16 @@ else
         SpotifyIndicY = 1020
     end
 end
+
+if database_read("savedplaylists") == nil then
+    Playlists = {}
+else
+    Playlists = database_read("savedplaylists")
+    for i, id in ipairs(Playlists) do
+        PlayListCount = PlayListCount + 1
+    end
+end
+print(inspect(database_read("savedplaylists")))
 
 switch = function(check)                                        
     return function(cases)
@@ -548,6 +555,7 @@ local elements = {
     ClantagCheckbox = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
     HigherUpdateRate = ui_new_checkbox("MISC", "Miscellaneous", "Higher update rate (experimental)"),
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
+    KankerOp = ui_new_button("MISC", "Miscellaneous", "Kanker op", function() database_write("savedplaylists", nil) Playlists = {} end),
 }
 
 function ChangeVolume(Svol) 
@@ -621,14 +629,21 @@ function InitPlaylist(id)
         end
         PlayListCount = PlayListCount + 1
         local temp = json.parse(r.body)
-        table.insert(Playlists, {id = PlayListCount, PlaylistName = temp.name})
+        table.insert(Playlists, {id = PlayListCount, PlaylistName = temp.name .. "," .. id})
 
-      --  for i, track in ipairs(temp.tracks.items) do
-      --      TrackCount = TrackCount + 1
-      --      print(TrackCount)
-      --  end
-      --  TrackCount = 0
+    end)
+end
 
+function LoadPlaylist(uri)
+    local jekanker, moeder = string.match(uri, "(.*),(.*)")
+    http.get("https://api.spotify.com/v1/playlists/".. moeder .."/tracks?market=US&fields=items(track(name%2C%20uri%2C%20images%2C%20album.artists%2C%20duration_ms))&limit=100&offset=0" .. "&access_token=" .. apikey, function(s, r)
+        if not s or r.status ~= 200 then return end
+        local temp = json.parse(r.body)
+        for i, track in ipairs(temp.items) do
+            TrackCount = TrackCount + 1
+            print(TrackCount)
+        end
+        TrackCount = 0
     end)
 end
 
@@ -674,6 +689,7 @@ function ShowMenuElements()
         ui_set_visible(elements.ResetAuth, true)
         ui_set_visible(elements.MenuBarEnable, true)
         ui_set_visible(elements.HigherUpdateRate, true)
+        ui_set_visible(elements.KankerOp, true)
 
         if ui_get(elements.IndicType) == "Spotify" then
             ui_set_visible(elements.ArtButton, true)
@@ -1715,23 +1731,24 @@ function drawHUD()
             else
                 surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 150, 150, 150, 255, MainElementFontHUD, "+  Add Playlist")
             end
-            
             local DrawnPlaylist = 0
             for i, id in ipairs(Playlists) do
+                local jekanker, moeder = string.match(Playlists[i].PlaylistName, "(.*),(.*)")
                 if ExtendedMousePosX >= startposxtr.plylstfstX and ExtendedMousePosX <= endposxtr.plylstfstX and ExtendedMousePosY >= (startposxtr.plylstfstY + (30*(i-1))) and ExtendedMousePosY <= (endposxtr.plylstfstY + (30*(i-1))) then
                     if LClick then
                         julliekankermoeders = true
-                        surface.draw_text(menuX - 210, menuY + 65 + (30*(i-1)), 150, 150, 150, 255, PlayListFontHUD, "> " .. Playlists[i].PlaylistName)
+                        surface.draw_text(menuX - 210, menuY + 65 + (30*(i-1)), 150, 150, 150, 255, PlayListFontHUD, "> " .. jekanker)
                     elseif julliekankermoeders == true then
                         julliekankermoeders = false
                         SearchSelected = false
+                        LoadPlaylist(Playlists[i].PlaylistName)
                     else
-                        surface.draw_text(menuX - 210, menuY + 65 + (30*(i-1)), 255, 255, 255, 255, PlayListFontHUD, "> " .. Playlists[i].PlaylistName)
+                        surface.draw_text(menuX - 210, menuY + 65 + (30*(i-1)), 255, 255, 255, 255, PlayListFontHUD, "> " .. jekanker)
                     end
                 else
-                    surface.draw_text(menuX - 210, menuY + 65 + (30*(i-1)), 150, 150, 150, 255, PlayListFontHUD, "> " .. Playlists[i].PlaylistName)
+                    surface.draw_text(menuX - 210, menuY + 65 + (30*(i-1)), 150, 150, 150, 255, PlayListFontHUD, "> " .. jekanker)
                 end
-            local DrawnPlaylist = DrawnPlaylist + 1
+                local DrawnPlaylist = DrawnPlaylist + 1
             end
         end
     end
@@ -1740,10 +1757,8 @@ end
 function MenuBarAnimHandler()
     
     if MenuBarExtended and AnimSizePerc ~= 200 then
-        print("extended")
         AnimSizePerc = AnimSizePerc + 4
     elseif not MenuBarExtended and AnimSizePerc ~= 100 then
-        print("normal")
         AnimSizePerc = AnimSizePerc - 4
     elseif MenuBarExtended and AnimSizePerc == 200 then
         OnGoingAnim = false
@@ -1958,4 +1973,5 @@ client.set_event_callback('shutdown', function()
     database_write("previous_size", SelectedSize)
     database_write("StoredKey", apikey)
     database_write("StoredKey2", refreshkey)
+    database_write("savedplaylists", Playlists)
 end)
