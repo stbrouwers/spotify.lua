@@ -1,6 +1,7 @@
 local surface = require "gamesense/surface"
 local http = require "gamesense/http"
 local images = require "gamesense/images"
+local inspect = require "gamesense/inspect"
 local ffi = require "ffi"
 
 local database_read = database.read
@@ -39,8 +40,8 @@ local ArtistFontHUD = surface.create_font("GothamBookItalic", 20, 600, 0x010)
 local DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 600, 0x010)
 local DurationFontHUD = surface.create_font("GothamBookItalic", 12, 900, 0x010)
 local MainElementFontHUD = surface.create_font("GothamBookItalic", 18, 600, 0x010)
+local PlayListFontHUD = surface.create_font("GothamBookItalic", 18, 500, 0x010)
 local VolumeFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
-
 
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
 local MenukeyReference = ui.reference("MISC", "Settings", "Menu key")
@@ -103,6 +104,8 @@ AlteredVolume = 0
 NewVolume = 0
 AnimSizePerc = 100
 ProgressBarCache = 0
+PlayListCount = 0
+TrackCount = 0
 
 AuthStatus = "> Not connected"
 deviceid = ""
@@ -126,6 +129,11 @@ local LoopActiveUrl = "https://i.imgur.com/rEEvjzM.png"
 local ShuffleUrl = "https://i.imgur.com/8hjJTCO.png"
 local ShuffleActiveUrl = "https://i.imgur.com/HNVpf4j.png"
 local VolumeSpeakerUrl = "https://i.imgur.com/rj2IJfJ.png"
+
+Playlists = {
+
+
+}
 
 http.get(LoopUrl, function(success, response)
     if not success or response.status ~= 200 then
@@ -601,6 +609,27 @@ end
 
 function PlaySong(uri)
 
+end
+
+function InitPlaylist(id)
+    if id == nil then client.color_log(255, 0, 0, "Failed to add playlist. Make sure that you have your Playlist link in your clipboard, and that the formatting is correct. (https://open.spotify.com/playlist/6piHLVTmzq8nTix2wIlM8x?si=10c8288bd6fc4f94)") return end
+
+    http.get("https://api.spotify.com/v1/playlists/" .. id .. "?access_token=" .. apikey .. "&fields=name", function(s, r) -- tracks.items(track(name%2C%20uri%2C%20images%2C%20album.artists%2C%20duration_ms))%2C%20
+        if not s or r.status ~= 200 then
+            client.color_log(255, 0, 0, "Failed to add playlist. Make sure that you have your Playlist link in your clipboard, and that the formatting is correct. (https://open.spotify.com/playlist/6piHLVTmzq8nTix2wIlM8x?si=10c8288bd6fc4f94)")
+            return
+        end
+        PlayListCount = PlayListCount + 1
+        local temp = json.parse(r.body)
+        table.insert(Playlists, {id = PlayListCount, PlaylistName = temp.name})
+
+      --  for i, track in ipairs(temp.tracks.items) do
+      --      TrackCount = TrackCount + 1
+      --      print(TrackCount)
+      --  end
+      --  TrackCount = 0
+
+    end)
 end
 
 function setConnected(value)
@@ -1585,17 +1614,21 @@ function drawHUD()
         else
             ExtendedMousePosX = rawmouseposX - menuX + 225
             ExtendedMousePosY = rawmouseposY - menuY
-            print(ExtendedMousePosX .. " | ".. MouseHudPosY .. " | " .. ExtendedMousePosY)
+            --print(ExtendedMousePosX .. " | ".. MouseHudPosY .. " | " .. ExtendedMousePosY)
             local startposxtr = {
                 cvrtX = 0, cvrtY = -225,
                 xtbtnX = 192, xtbtnY = -217,
-                srchbrX = 20, srchbrY = 12
+                srchbrX = 20, srchbrY = 12,
+                nwplylstX = 21, nwplylstY = 60 + (PlayListCount*30),
+                plylstfstX = 15, plylstfstY = 69
             }
     
             local endposxtr = {
                 cvrtX = 225, cvrtY = 0,
                 xtbtnX = 215, xtbtnY = -195,
-                srchbrX = 200, srchbrY = 40
+                srchbrX = 200, srchbrY = 40,
+                nwplylstX = 145, nwplylstY = 80 + (PlayListCount*30),
+                plylstfstX = 196, plylstfstY = 80
             }
 
             if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
@@ -1628,6 +1661,7 @@ function drawHUD()
             surface.draw_filled_rect(menuX - 225, menuY, 225, menuH - 225, 19, 19, 19, 255)
             surface.draw_line(menuX - 210, menuY + 50, menuX - 25, menuY + 50, 50, 50, 50, 255)
 
+            --Searchbar
             if SearchSelected == false then
                 if ExtendedMousePosX >= startposxtr.srchbrX and ExtendedMousePosX <= endposxtr.srchbrX and ExtendedMousePosY >= startposxtr.srchbrY and ExtendedMousePosY <= endposxtr.srchbrY then
                     surface.draw_text(menuX - 180, menuY + 17, 255, 255, 255, 255, MainElementFontHUD, "Search")
@@ -1661,6 +1695,43 @@ function drawHUD()
                 renderer.circle_outline(menuX - 197, menuY + 24, 255, 255, 255, 255, 7, 0, 1, 2)
                 renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 255, 255, 255, 255)
                 DrawSubtab("search")
+            end
+
+            --add playlist button
+            if ExtendedMousePosX >= startposxtr.nwplylstX and ExtendedMousePosX <= endposxtr.nwplylstX and ExtendedMousePosY >= startposxtr.nwplylstY and ExtendedMousePosY <= endposxtr.nwplylstY then
+                if LClick then
+                    julliekankermoeders = true
+                    surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 150, 150, 150, 150, MainElementFontHUD, "+  Add Playlist")
+                elseif julliekankermoeders == true then
+                    julliekankermoeders = false
+                    SearchSelected = false
+                    local CopiedId = CP()
+                    local ParsedId = string.gsub(CopiedId, "https://open.spotify.com/playlist/", "")
+                    local jekanker, moeder = string.match(ParsedId, "(.*)?(.*)")
+                    InitPlaylist(jekanker)
+                else
+                    surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 255, 255, 255, 255, MainElementFontHUD, "+  Add Playlist")
+                end
+            else
+                surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 150, 150, 150, 255, MainElementFontHUD, "+  Add Playlist")
+            end
+            
+            local DrawnPlaylist = 0
+            for i, id in ipairs(Playlists) do
+                if ExtendedMousePosX >= startposxtr.plylstfstX and ExtendedMousePosX <= endposxtr.plylstfstX and ExtendedMousePosY >= (startposxtr.plylstfstY + (30*(i-1))) and ExtendedMousePosY <= (endposxtr.plylstfstY + (30*(i-1))) then
+                    if LClick then
+                        julliekankermoeders = true
+                        surface.draw_text(menuX - 210, menuY + 65 + (30*(i-1)), 150, 150, 150, 255, PlayListFontHUD, "> " .. Playlists[i].PlaylistName)
+                    elseif julliekankermoeders == true then
+                        julliekankermoeders = false
+                        SearchSelected = false
+                    else
+                        surface.draw_text(menuX - 210, menuY + 65 + (30*(i-1)), 255, 255, 255, 255, PlayListFontHUD, "> " .. Playlists[i].PlaylistName)
+                    end
+                else
+                    surface.draw_text(menuX - 210, menuY + 65 + (30*(i-1)), 150, 150, 150, 255, PlayListFontHUD, "> " .. Playlists[i].PlaylistName)
+                end
+            local DrawnPlaylist = DrawnPlaylist + 1
             end
         end
     end
