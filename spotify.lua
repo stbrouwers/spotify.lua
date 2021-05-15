@@ -18,6 +18,7 @@ local ui_new_combobox = ui.new_combobox
 local ui_new_slider = ui.new_slider
 local ui_new_color_picker = ui.new_color_picker
 local ui_new_hotkey = ui.new_hotkey
+local ui_new_multiselect = ui.new_multiselect
 local ui_menu_position = ui.menu_position
 local last_update = client.unix_time()
 local last_update_controls = client.unix_time()
@@ -561,7 +562,7 @@ local elements = {
     ClantagCheckbox = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
     HigherUpdateRate = ui_new_checkbox("MISC", "Miscellaneous", "Higher update rate (experimental)"),
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
-    KankerOp = ui_new_button("MISC", "Miscellaneous", "Reset playlists", function() database_write("savedplaylists", nil) Playlists = {} PlayListCount = 0 PlaylistLimitReached = false currplaylist = {} TrackCount = 0 database_write("playlistcache", "") playlistcache = "" end),
+    KankerOp = ui_new_button("MISC", "Miscellaneous", "Reset playlists", function() database_write("savedplaylists", nil) Playlists = {} PlayListCount = 0 PlaylistLimitReached = false currplaylist = {} TrackCount = 0 Playlistcache = "" database_write("playlistcache", Playlistcache) PlaylistSelected = false end),
 }
 
 function ChangeVolume(Svol) 
@@ -642,9 +643,10 @@ end
 
 function LoadPlaylist(uri)
     local jekanker, moeder = string.match(uri, "(.*),(.*)")
-    currplaylist = {}
     http.get("https://api.spotify.com/v1/playlists/".. moeder .."/tracks?market=US&limit=100&offset=0" .. "&access_token=" .. apikey, function(s, r)
         if not s or r.status ~= 200 then return end
+        currplaylist = {}
+        currplaylistname = jekanker
         local temp = json.parse(r.body)
         for i, track in ipairs(temp.items) do
             TrackCount = TrackCount + 1
@@ -1686,24 +1688,7 @@ function drawHUD()
             surface.draw_line(menuX - 210, menuY + 50, menuX - 25, menuY + 50, 50, 50, 50, 255)
 
             --Searchbar
-            if SearchSelected == false and PlaylistSelected == false then
-                if ExtendedMousePosX >= startposxtr.srchbrX and ExtendedMousePosX <= endposxtr.srchbrX and ExtendedMousePosY >= startposxtr.srchbrY and ExtendedMousePosY <= endposxtr.srchbrY then
-                    surface.draw_text(menuX - 180, menuY + 17, 255, 255, 255, 255, MainElementFontHUD, "Search")
-                    renderer.circle_outline(menuX - 197, menuY + 24, 255, 255, 255, 255, 7, 0, 1, 2)
-                    renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 255, 255, 255, 255)
-
-                    if LClick then
-                        julliekankermoeders = true
-                    elseif julliekankermoeders == true then
-                        julliekankermoeders = false
-                        SearchSelected = true
-                    end
-                else
-                    surface.draw_text(menuX - 180, menuY + 17, 150, 150, 150, 255, MainElementFontHUD, "Search")
-                    renderer.circle_outline(menuX - 197, menuY + 24, 150, 150, 150, 255, 7, 0, 1, 2)
-                    renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 150, 150, 150, 255)
-                end
-            elseif SearchSelected then
+            if SearchSelected then
                 if ExtendedMousePosX >= startposxtr.srchbrX and ExtendedMousePosX <= endposxtr.srchbrX and ExtendedMousePosY >= startposxtr.srchbrY and ExtendedMousePosY <= endposxtr.srchbrY then
 
                     if LClick then
@@ -1719,8 +1704,27 @@ function drawHUD()
                 renderer.circle_outline(menuX - 197, menuY + 24, 255, 255, 255, 255, 7, 0, 1, 2)
                 renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 255, 255, 255, 255)
                 DrawSubtab("search")
+            else
+                if ExtendedMousePosX >= startposxtr.srchbrX and ExtendedMousePosX <= endposxtr.srchbrX and ExtendedMousePosY >= startposxtr.srchbrY and ExtendedMousePosY <= endposxtr.srchbrY then
+                    surface.draw_text(menuX - 180, menuY + 17, 255, 255, 255, 255, MainElementFontHUD, "Search")
+                    renderer.circle_outline(menuX - 197, menuY + 24, 255, 255, 255, 255, 7, 0, 1, 2)
+                    renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 255, 255, 255, 255)
 
-            elseif PlaylistSelected then
+                    if LClick then
+                        julliekankermoeders = true
+                    elseif julliekankermoeders == true then
+                        julliekankermoeders = false
+                        SearchSelected = true
+                        PlaylistSelected = false
+                    end
+                else
+                    surface.draw_text(menuX - 180, menuY + 17, 150, 150, 150, 255, MainElementFontHUD, "Search")
+                    renderer.circle_outline(menuX - 197, menuY + 24, 150, 150, 150, 255, 7, 0, 1, 2)
+                    renderer.line(menuX - 194, menuY + 28, menuX - 188, menuY + 35, 150, 150, 150, 255)
+                end
+            end
+
+            if PlaylistSelected then
                 DrawSubtab("playlist")
                 surface.draw_text(menuX - 180, menuY + 17, 150, 150, 150, 255, MainElementFontHUD, "Search")
                 renderer.circle_outline(menuX - 197, menuY + 24, 150, 150, 150, 255, 7, 0, 1, 2)
@@ -1735,7 +1739,6 @@ function drawHUD()
                         surface.draw_text(menuX - 200, menuY + 65 + (30*PlayListCount), 150, 150, 150, 150, MainElementFontHUD, "+  Add Playlist")
                     elseif julliekankermoeders == true then
                         julliekankermoeders = false
-                        SearchSelected = false
                         local CopiedId = CP()
                         local ParsedId = string.gsub(CopiedId, "https://open.spotify.com/playlist/", "")
                         local jekanker, moeder = string.match(ParsedId, "(.*)?(.*)")
@@ -1807,7 +1810,33 @@ function MenuBarAnimHandler()
 end
 
 function DrawSubtab(subtype)
+    
+    local startposxtr = {
+        xtbtnX = 320, xtbtnY = 0
+    }
+
+    local endposxtr = {
+        xtbtnX = 350, xtbtnY = 30
+    }
+
     surface.draw_filled_rect(menuX + menuW, menuY, 350, menuH+97, 25, 25, 25, 255)
+    if MouseHudrightPosX >= startposxtr.xtbtnX and MouseHudrightPosX <= endposxtr.xtbtnX and ExtendedMousePosY >= startposxtr.xtbtnY and ExtendedMousePosY <= endposxtr.xtbtnY then
+        if LClick then
+            julliekankermoeders = true
+            renderer.line(menuX + menuW + 325, menuY + 10, menuX + menuW + 340, menuY + 25, 90, 10, 10, 255)
+            renderer.line(menuX + menuW + 325, menuY + 25, menuX + menuW + 340, menuY + 10, 90, 10, 10, 255)
+        elseif julliekankermoeders == true then
+            julliekankermoeders = false
+            SearchSelected = false
+            PlaylistSelected = false
+        else
+            renderer.line(menuX + menuW + 325, menuY + 10, menuX + menuW + 340, menuY + 25, 200, 20, 20, 255)
+            renderer.line(menuX + menuW + 325, menuY + 25, menuX + menuW + 340, menuY + 10, 200, 20, 20, 255)
+        end
+    else
+        renderer.line(menuX + menuW + 325, menuY + 10, menuX + menuW + 340, menuY + 25, 90, 90, 90, 255)
+        renderer.line(menuX + menuW + 325, menuY + 25, menuX + menuW + 340, menuY + 10, 90, 90, 90, 255)
+    end
 
     switch(subtype) {
         search = function()
@@ -1815,7 +1844,7 @@ function DrawSubtab(subtype)
         end,
 
         playlist = function()
-            --table.insert(currplaylist, {id = TrackCount, SongDetails = temp.items[i].track.name .. "^" .. temp.items[i].track.artists[1].name .. "^" .. temp.items[i].track.duration_ms .. "^" .. temp.items[i].track.uri .. "^" .. temp.items[i].track.album.images[3].url})
+            surface.draw_text(menuX + menuW + 15, menuY + 10, 255, 255, 255, 255, MainElementFontHUD, currplaylistname)
             local n, a, d, u, i = string.match(currplaylist[1].SongDetails, "(.*)^(.*)^(.*)^(.*)^(.*)")
         end
     }
