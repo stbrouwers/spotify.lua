@@ -34,6 +34,7 @@ MenuScaleY = 10.8
 ScaleTitle = 41.54
 ScaleArtist = 63.53
 ScaleDuration = 57
+
 local TitleFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
 local ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 0x010)
 local TitleFontHUD = surface.create_font("GothamBookItalic", 25, 900, 0x010)
@@ -42,6 +43,12 @@ local DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 6
 local DurationFontHUD = surface.create_font("GothamBookItalic", 12, 900, 0x010)
 local MainElementFontHUD = surface.create_font("GothamBookItalic", 18, 600, 0x010)
 local PlayListFontHUD = surface.create_font("GothamBookItalic", 18, 500, 0x010)
+local SubtabTitleHUD = surface.create_font("GothamBookItalic", 30, 500, 0x010)
+local SubtabRowFontHUD = surface.create_font("GothamBookItalic", 23, 500, 0x010)
+local SubtabRowFontHUD2 = surface.create_font("GothamBookItalic", 17, 500, 0x010)
+local SubtabTrackFontHUD2 = surface.create_font("GothamBookItalic", 19, 800, 0x010)
+local SubtabArtistFontHUD2 = surface.create_font("GothamBookItalic", 12, 500, 0x010)
+
 local VolumeFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
 
 local MainCheckbox = ui.new_checkbox("MISC", "Miscellaneous", "Spotify")
@@ -53,18 +60,26 @@ local SizePerc = database_read("previous_size") or 30
 local apikey = database_read("StoredKey") or nil
 local refreshkey = database_read("StoredKey2") or nil
 
+ffi.cdef[[
+    typedef bool (__thiscall *IsButtonDown_t)(void*, int);
+    typedef int (__thiscall *GetAnalogValue_t)(void*, int);
+	typedef int (__thiscall *GetAnalogDelta_t)(void*, int);
+]]
+
 local native_GetClipboardTextCount = vtable_bind("vgui2.dll", "VGUI_System010", 7, "int(__thiscall*)(void*)")
 local native_GetClipboardText = vtable_bind("vgui2.dll", "VGUI_System010", 11, "int(__thiscall*)(void*, int, const char*, int)")
 local new_char_arr = ffi.typeof("char[?]")
-
-local function CP()
-    local len = native_GetClipboardTextCount()
-    if len > 0 then
-      local char_arr = new_char_arr(len)
-      native_GetClipboardText(0, char_arr, len)
-      return ffi.string(char_arr, len-1)
-    end
-end
+local interface_ptr = ffi.typeof('void***')
+local raw_inputsystem = client.create_interface('inputsystem.dll', 'InputSystemVersion001')
+local inputsystem = ffi.cast(interface_ptr, raw_inputsystem)
+local input_vmt = inputsystem[0]
+local raw_IsButtonDown = input_vmt[15]
+local raw_GetAnalogValue = input_vmt[18]
+local raw_GetAnalogDelta = input_vmt[19]
+local IsButtonDown = ffi.cast('IsButtonDown_t', raw_IsButtonDown)
+local GetAnalogValue = ffi.cast('GetAnalogValue_t', raw_GetAnalogValue)
+local GetAnalogDelta = ffi.cast('GetAnalogDelta_t', raw_GetAnalogDelta)
+local mouse_state = {}
 
 retardedJpg = false
 dragging = false
@@ -91,6 +106,8 @@ MenuBarExtended = false
 SearchSelected = false
 PlaylistSelected = false
 PlaylistLimitReached = false
+scrollmin = true
+scrollmax = false
 
 SpotifyScaleX = sx/4.8
 SpotifyScaleY = sy/10.8
@@ -109,6 +126,8 @@ AnimSizePerc = 100
 ProgressBarCache = 0
 PlayListCount = 0
 TrackCount = 0
+scrollvalue = 0
+last_analogvalue = 0
 
 AuthStatus = "> Not connected"
 deviceid = ""
@@ -132,6 +151,54 @@ local LoopActiveUrl = "https://i.imgur.com/rEEvjzM.png"
 local ShuffleUrl = "https://i.imgur.com/8hjJTCO.png"
 local ShuffleActiveUrl = "https://i.imgur.com/HNVpf4j.png"
 local VolumeSpeakerUrl = "https://i.imgur.com/rj2IJfJ.png"
+
+local function CP()
+    local len = native_GetClipboardTextCount()
+    if len > 0 then
+      local char_arr = new_char_arr(len)
+      native_GetClipboardText(0, char_arr, len)
+      return ffi.string(char_arr, len-1)
+    end
+end
+
+function mouse_state.new()
+	return setmetatable({tape = 0, laststate = 0, initd = false, events = {}}, {__index = mouse_state})
+end
+local scrollstate = mouse_state.new()
+
+function mouse_state:init()
+    print("Mouse Wheel State : ", GetAnalogDelta(inputsystem, 0x03) == 0 and "Middle" or GetAnalogDelta(inputsystem, 0x03) == 1 and "Up" or "Down", " Distance : ", GetAnalogValue(inputsystem, 0x03))
+    if not self.init then
+        self.tape = 0
+        self.laststate = GetAnalogDelta(inputsystem, 0x03)
+        self.initd = true
+    end
+    if GetAnalogDelta(inputsystem, 0x03) == 0 and self.tape ~= 0 then
+        self.tape = 0
+        return
+    end
+    local currentTape = GetAnalogValue(inputsystem, 0x03)
+    if currentTape > self.tape then
+        for index, value in ipairs(self.events) do
+            value({state = "Up", pos = currentTape})
+        end
+        self.tape = currentTape
+    elseif currentTape < self.tape then
+        for index, value in ipairs(self.events) do
+            value({state = "Down", pos = currentTape})
+        end
+        self.tape = currentTape
+    end
+
+    if GetAnalogValue(inputsystem, 0x03) >= last_analogvalue + 1 and not scrollmin then
+        scrollvalue = scrollvalue + 1
+    elseif GetAnalogValue(inputsystem, 0x03) <= last_analogvalue - 1 and not scrollmax then
+        scrollvalue = scrollvalue - 1
+    end
+    print(scrollvalue)
+    last_analogvalue = GetAnalogValue(inputsystem, 0x03)
+end
+
 
 http.get(LoopUrl, function(success, response)
     if not success or response.status ~= 200 then
@@ -322,14 +389,15 @@ end
 
 function UpdateInf()
     SongNameBack = SongName
-    DAuth() 
-    http.get("https://api.spotify.com/v1/me/player?access_token=" .. apikey, function(success, response)
-        if not success or response.status ~= 200 then
-            AuthStatus = "TOKEN"
-            ErrorSpree = ErrorSpree + 1
-            TotalErrors = TotalErrors + 1
-            return 
-        end
+    if UpdateWaitCheck == false then
+        DAuth() 
+        http.get("https://api.spotify.com/v1/me/player?access_token=" .. apikey, function(success, response)
+            if not success or response.status ~= 200 then
+                AuthStatus = "TOKEN"
+                ErrorSpree = ErrorSpree + 1
+                TotalErrors = TotalErrors + 1
+                return 
+            end
             CurrentDataSpotify = json.parse(response.body)
             deviceid = CurrentDataSpotify.device.id
 
@@ -338,31 +406,28 @@ function UpdateInf()
                 RunOnceCheck = true
             end
 
-            if UpdateWaitCheck == false then
-                if CurrentDataSpotify.is_playing and CurrentDataSpotify.currently_playing_type == "episode"  then
-                    SongName = "Podcast"
-                    ArtistName = ""
-                    PlayState = "Playing"
-                elseif CurrentDataSpotify.is_playing then
-                    SongName = CurrentDataSpotify.item.name
-                    SongNameHUD = CurrentDataSpotify.item.name
-                    ArtistName = CurrentDataSpotify.item.artists[1].name
-                    ArtistNameHUD = CurrentDataSpotify.item.artists[1].name
-                    PlayState = "Playing"
-                else
-                    SongName = "Music paused"
-                    PlayState = "Paused"
-                    ArtistName = ""
-                end
-                SongLength = CurrentDataSpotify.item.duration_ms / 1000
-                SongProgression = CurrentDataSpotify.progress_ms / 1000
-                ShuffleState = CurrentDataSpotify.shuffle_state
-                RepeatState = CurrentDataSpotify.repeat_state
-                ProgressBarCache = CurrentDataSpotify.progress_ms
-                VolumeBarCache = CurrentDataSpotify.device.volume_percent
+            if CurrentDataSpotify.is_playing and CurrentDataSpotify.currently_playing_type == "episode"  then
+                SongName = "Podcast"
+                ArtistName = ""
+                PlayState = "Playing"
+            elseif CurrentDataSpotify.is_playing then
+                SongName = CurrentDataSpotify.item.name
+                SongNameHUD = CurrentDataSpotify.item.name
+                ArtistName = CurrentDataSpotify.item.artists[1].name
+                ArtistNameHUD = CurrentDataSpotify.item.artists[1].name
+                PlayState = "Playing"
+            else
+                SongName = "Music paused"
+                PlayState = "Paused"
+                ArtistName = ""
             end
-            UpdateWaitCheck = false
-
+            
+            SongLength = CurrentDataSpotify.item.duration_ms / 1000
+            SongProgression = CurrentDataSpotify.progress_ms / 1000
+            ShuffleState = CurrentDataSpotify.shuffle_state
+            RepeatState = CurrentDataSpotify.repeat_state
+            ProgressBarCache = CurrentDataSpotify.progress_ms
+            VolumeBarCache = CurrentDataSpotify.device.volume_percent
 
             TotalDuration = msConversion(CurrentDataSpotify.item.duration_ms)
             ProgressDuration = msConversion(CurrentDataSpotify.progress_ms)
@@ -381,6 +446,8 @@ function UpdateInf()
                 SongChanged = true
             end
         end)
+    end
+    UpdateWaitCheck = false
 end
 
 function PlayPause()
@@ -629,6 +696,7 @@ end
 function InitPlaylist(id)
     if id == nil then client.color_log(255, 0, 0, "Failed to add playlist. Make sure that you have your Playlist link in your clipboard, and that the formatting is correct. (https://open.spotify.com/playlist/6piHLVTmzq8nTix2wIlM8x?si=10c8288bd6fc4f94)") return end
     if string.find(Playlistcache, id) ~= nil then client.color_log(255, 0, 0, "You have already added this playlist!") return end
+    UpdateWaitCheck = true
     http.get("https://api.spotify.com/v1/playlists/" .. id .. "?access_token=" .. apikey .. "&fields=name", function(s, r) -- tracks.items(track(name%2C%20uri%2C%20images%2C%20album.artists%2C%20duration_ms))%2C%20
         if not s or r.status ~= 200 then
             client.color_log(255, 0, 0, "Failed to add playlist. Make sure that you have your Playlist link in your clipboard, and that the formatting is correct. (https://open.spotify.com/playlist/6piHLVTmzq8nTix2wIlM8x?si=10c8288bd6fc4f94)")
@@ -638,11 +706,14 @@ function InitPlaylist(id)
         local temp = json.parse(r.body)
         table.insert(Playlists, {id = PlayListCount, PlaylistName = temp.name .. "," .. id})
         Playlistcache = Playlistcache .. id
+        UpdateCount = UpdateCount + 1
     end)
 end
 
 function LoadPlaylist(uri)
     local jekanker, moeder = string.match(uri, "(.*),(.*)")
+    TrackCount = 0
+    UpdateWaitCheck = true
     http.get("https://api.spotify.com/v1/playlists/".. moeder .."/tracks?market=US&limit=100&offset=0" .. "&access_token=" .. apikey, function(s, r)
         if not s or r.status ~= 200 then return end
         currplaylist = {}
@@ -652,6 +723,21 @@ function LoadPlaylist(uri)
             TrackCount = TrackCount + 1
             table.insert(currplaylist, {id = TrackCount, SongDetails = temp.items[i].track.name .. "^" .. temp.items[i].track.artists[1].name .. "^" .. temp.items[i].track.duration_ms .. "^" .. temp.items[i].track.uri .. "^" .. temp.items[i].track.album.images[3].url})
             PlaylistSelected = true
+            UpdateCount = UpdateCount + 1
+        end
+    end)
+end
+
+function AddPlaylist(uri)
+    local jekanker, moeder = string.match(uri, "(.*),(.*)")
+    UpdateWaitCheck = true
+    http.get("https://api.spotify.com/v1/playlists/".. moeder .."/tracks?market=US&limit=100&offset=".. TrackCount .. "&access_token=" .. apikey, function(s, r)
+        if not s or r.status ~= 200 then return end
+        local temp = json.parse(r.body)
+        for i, track in ipairs(temp.items) do
+            TrackCount = TrackCount + 1
+            table.insert(currplaylist, {id = TrackCount, SongDetails = temp.items[i].track.name .. "^" .. temp.items[i].track.artists[1].name .. "^" .. temp.items[i].track.duration_ms .. "^" .. temp.items[i].track.uri .. "^" .. temp.items[i].track.album.images[3].url})
+            UpdateCount = UpdateCount + 1
         end
     end)
 end
@@ -1640,7 +1726,6 @@ function drawHUD()
         else
             ExtendedMousePosX = rawmouseposX - menuX + 225
             ExtendedMousePosY = rawmouseposY - menuY
-            --print(ExtendedMousePosX .. " | ".. MouseHudPosY .. " | " .. ExtendedMousePosY)
             local startposxtr = {
                 cvrtX = 0, cvrtY = -225,
                 xtbtnX = 192, xtbtnY = -217,
@@ -1761,6 +1846,7 @@ function drawHUD()
                     elseif julliekankermoeders == true then
                         julliekankermoeders = false
                         SearchSelected = false
+                        scrollvalue = 0
                         LoadPlaylist(Playlists[i].PlaylistName)
                     else
                         surface.draw_text(menuX - 210, menuY + 65 + (30*(i-1)), 255, 255, 255, 255, PlayListFontHUD, "> " .. jekanker)
@@ -1809,14 +1895,24 @@ function MenuBarAnimHandler()
     surface.draw_filled_rect(menuX - 225, menuY, 225, menuH - 225, 19, 19, 19, 255/200*AnimSizePerc)
 end
 
-function DrawSubtab(subtype)
-    
+local function splitByChunk(text, chunkSize)
+    local s = {}
+    for i=1, #text, chunkSize do
+        s[#s+1] = text:sub(i,i+chunkSize - 1)
+    end
+    return s
+end
+
+function DrawSubtab(subtype) 
+
     local startposxtr = {
-        xtbtnX = 320, xtbtnY = 0
+        xtbtnX = 320, xtbtnY = 0,
+        scrlX = 10, scrlY = 121
     }
 
     local endposxtr = {
-        xtbtnX = 350, xtbtnY = 30
+        xtbtnX = 350, xtbtnY = 30,
+        scrlX = 340, scrlY = menuH
     }
 
     surface.draw_filled_rect(menuX + menuW, menuY, 350, menuH+97, 25, 25, 25, 255)
@@ -1840,22 +1936,70 @@ function DrawSubtab(subtype)
 
     switch(subtype) {
         search = function()
-
+            surface.draw_text(menuX + menuW + 15, menuY + 35, 210, 210, 210, 255, SubtabTitleHUD, "Search") 
+            surface.draw_filled_gradient_rect(menuX + menuW, menuY + 15, 350, 60, 25, 25, 25, 0, 25, 25, 25, 210, false)
         end,
 
         playlist = function()
-            surface.draw_text(menuX + menuW + 15, menuY + 10, 255, 255, 255, 255, MainElementFontHUD, currplaylistname)
-            local n, a, d, u, i = string.match(currplaylist[1].SongDetails, "(.*)^(.*)^(.*)^(.*)^(.*)")
+
+            local maxvisibletracks = round((menuH-120)/45-1)
+
+            if MouseHudrightPosX >= startposxtr.scrlX and MouseHudrightPosX <= endposxtr.scrlX and ExtendedMousePosY >= startposxtr.scrlY and ExtendedMousePosY <= endposxtr.scrlY then
+                if scrollvalue >= 0 then
+                    scrollmin = true
+                else
+                    scrollmin = false
+                end
+                if scrollvalue <= (TrackCount*-1+maxvisibletracks) then
+                    scrollmax = true
+                else
+                    scrollmax = false
+                end
+                scrollstate:init()
+            end
+        
+            print(maxvisibletracks)
+            local fartball2021 = splitByChunk(currplaylistname, 25)
+            
+            surface.draw_text(menuX + menuW + 15, menuY + 35, 210, 210, 210, 255, SubtabTitleHUD, fartball2021[1])
+            surface.draw_filled_gradient_rect(menuX + menuW, menuY + 15, 350, 60, 25, 25, 25, 0, 25, 25, 25, 210, false)
+            surface.draw_filled_gradient_rect(menuX + menuW + 250, menuY + 20, 70, 60, 25, 25, 25, 0, 25, 25, 25, 255, true)
+            surface.draw_filled_rect(menuX + menuW + 320, menuY + 20, 30, 60, 25, 25, 25, 255)
+            renderer.line(menuX + menuW + 10, menuY + 120, menuX + menuW + 340, menuY + 120, 45, 45, 45, 255)
+            surface.draw_text(menuX + menuW + 20, menuY + 95, 100, 100, 100, 255, SubtabRowFontHUD, "#")
+            surface.draw_text(menuX + menuW + 48, menuY + 98, 100, 100, 100, 255, SubtabRowFontHUD2, "TITLE")
+            renderer.circle_outline(menuX + menuW + 320, menuY + 106, 97, 97, 97, 255, 7, 0, 100, 1)
+            renderer.line(menuX + menuW + 320, menuY + 107, menuX + menuW + 320, menuY + 102, 97, 97, 97, 255)
+            renderer.line(menuX + menuW + 321, menuY + 106, menuX + menuW + 323, menuY + 106, 97, 97, 97, 255)
+
+            local fart = 1
+            for i = maxvisibletracks, 1, -1 do
+                if scrollvalue*-1+fart <= TrackCount then
+                    local n, a, d, u, img = string.match(currplaylist[scrollvalue*-1+fart].SongDetails, "(.*)^(.*)^(.*)^(.*)^(.*)")
+                    local sussypissyretard = splitByChunk(n, 30)
+
+                    if scrollvalue*-1+fart >= 100 then
+                        surface.draw_text(menuX + menuW + 11, menuY + 95 + (45 * fart), 180, 180, 180, 255, SubtabRowFontHUD2, tostring(scrollvalue*-1+fart))
+                    elseif scrollvalue*-1+fart >= 10 then
+                        surface.draw_text(menuX + menuW + 16, menuY + 95 + (45 * fart), 180, 180, 180, 255, SubtabRowFontHUD2, tostring(scrollvalue*-1+fart))
+                    else
+                        surface.draw_text(menuX + menuW + 20, menuY + 95 + (45 * fart), 180, 180, 180, 255, SubtabRowFontHUD2, tostring(scrollvalue*-1+fart))
+                    end
+
+                    surface.draw_text(menuX + menuW + 48, menuY + 95 + (45 * fart-8), 255, 255, 255, 255, SubtabTrackFontHUD2, sussypissyretard[1])
+                    surface.draw_text(menuX + menuW + 48, menuY + 95 + (45 * fart+12), 150, 150, 150, 255, SubtabArtistFontHUD2, a)
+                    surface.draw_filled_gradient_rect(menuX + menuW + 270, menuY + 120, 40, menuH, 25, 25, 25, 0, 25, 25, 25, 255, true)
+                    surface.draw_text(menuX + menuW + 310, menuY + 95 + (45 * fart), 150, 150, 150, 255, SubtabArtistFontHUD2, msConversion(d))
+
+                    fart = fart + 1
+                end
+            end
+
+            if TrackCount > maxvisibletracks then
+                --renderer.rectangle(menuX + menuW + 340, menuY + 120 + (),  45, 45, 45, 255)
+            end
         end
     }
-end
-
-local function splitByChunk(text, chunkSize)
-    local s = {}
-    for i=1, #text, chunkSize do
-        s[#s+1] = text:sub(i,i+chunkSize - 1)
-    end
-    return s
 end
   
 function SpotifyClantag()
@@ -1882,6 +2026,7 @@ end
 
 function OnFrame()
     if not apikey then return end 
+    
     if client.unix_time() > last_update + ui_get(elements.UpdateRate) then
         UpdateInf()
         last_update = client.unix_time()
@@ -2019,6 +2164,9 @@ ui_set_callback(elements.HigherUpdateRate, function()
         ui_set(elements.UpdateRate, 1)
     end
 end)
+
+local qwq = mouse_state.new()
+qwq:init()
 
 client.set_event_callback("paint_ui", OnFrame)
 client.set_event_callback('shutdown', function()
