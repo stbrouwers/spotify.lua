@@ -1713,9 +1713,16 @@ function drawHUD()
     else
         if MenuBarExtended == false then
 
-            if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
-                Thumbnail:draw(menuX + 10, menuY + menuH + 10, 75, 75)
+            function drawmenuImg()
+                if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
+                    renderer.rectangle(menuX + 10, menuY + menuH + 10, 75, 75, 10, 10, 10, 255)
+                    renderer.circle_outline(menuX + 47, menuY + menuH + 47, 64, 64, 64, 255, 30, 0, 1, 3)
+                    renderer.circle_outline(menuX + 47, menuY + menuH + 47, 64, 64, 64, 255, 10, 0, 1, 3)
+                    Thumbnail:draw(menuX + 10, menuY + menuH + 10, 75, 75)
+                end
             end
+
+            st, rt = pcall(drawmenuImg)
     
             local startposxtr = {
                 cvrtX = 10, cvrtY = 10,
@@ -1764,9 +1771,16 @@ function drawHUD()
                 plylstfstX = 196, plylstfstY = 80
             }
 
-            if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
-                Thumbnail:draw(menuX - 225, menuY + menuH - 225, 225, 225)
+            function drawbigBalls()
+                if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
+                    renderer.rectangle(menuX - 225, menuY + menuH - 225, 225, 225, 10, 10, 10, 255)
+                    renderer.circle_outline(menuX - 113, menuY + menuH - 113, 64, 64, 64, 255, 100, 0, 1, 5)
+                    renderer.circle_outline(menuX - 113, menuY + menuH - 113, 64, 64, 64, 255, 20, 0, 1, 5)
+                    Thumbnail:draw(menuX - 225, menuY + menuH - 225, 225, 225)
+                end
             end
+
+            stb, rtb = pcall(drawbigBalls)
 
             surface.draw_filled_rect(menuX - 225, menuY + menuH - 3, 225, 100, 25, 25, 25, 255)
             surface.draw_text(menuX - 210, menuY + menuH + 23, 255, 255, 255, 255, TitleFontHUD, SongNameHUD)
@@ -1897,24 +1911,33 @@ function MenuBarAnimHandler()
     local kaasje = AnimSizePerc - 100
 
     if AnimSizePerc <= 140 then
-        if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
-            Thumbnail:draw(menuX + 10 - (85/40*kaasje), menuY + menuH + 10, 75, 75)
+        function bootyBitches()
+            if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
+                Thumbnail:draw(menuX + 10 - (85/40*kaasje), menuY + menuH + 10, 75, 75)
+            end
         end
         renderer.rectangle(menuX - (225/40*kaasje), menuY + menuH - 3, 226/40*kaasje, 100, 18, 18, 18, 255)
     elseif AnimSizePerc == 150 then
-        if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
-            Thumbnail:draw(menuX - 225, menuY + menuH + 10, 225, 5)
+        function pussyBitches()
+            if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
+                Thumbnail:draw(menuX - 225, menuY + menuH + 10, 225, 5)
+            end
         end
         renderer.rectangle(menuX - 225, menuY + menuH - 3, 226, 100, 18, 18, 18, 255)
     elseif AnimSizePerc >= 175 then
-        if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
-            Thumbnail:draw(menuX - 225, menuY + menuH + 0 - (225/25*tempsize), 225, 225/25*tempsize)
+        function cockBitches()
+            if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
+                Thumbnail:draw(menuX - 225, menuY + menuH + 0 - (225/25*tempsize), 225, 225/25*tempsize)
+            end
         end
         renderer.rectangle(menuX - 225, menuY + menuH - 3, 226, 100, 18, 18, 18, 255)
     else
         renderer.rectangle(menuX - 225, menuY + menuH - 3, 226, 100, 18, 18, 18, 255)
     end
     surface.draw_filled_rect(menuX - 225, menuY, 225, menuH - 225, 19, 19, 19, 255/200*AnimSizePerc)
+    pcall(cockBitches)
+    pcall(bootyBitches)
+    pcall(pussyBitches)
 end
 
 local function splitByChunk(text, chunkSize)
@@ -2085,7 +2108,7 @@ function SpotifyClantag()
             CurrentSong = SongName
         end
     end
-    
+
     if not ui_get(elements.ClantagCheckbox) then return end
     local splitClantagName = splitByChunk(SongName, 15)
     local splitClantagArtist = splitByChunk(ArtistName, 15)
