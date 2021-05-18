@@ -1920,7 +1920,7 @@ function DrawSubtab(subtype)
         xtbtnX = 350, xtbtnY = 30,
         scrlX = 340, scrlY = menuH,
         sngbtnX = 350, sngbtnY = 120,
-        lmbtnX = 220, lmbtnY = menuH+40
+        lmbtnX = 235, lmbtnY = menuH+23
     }
 
     surface.draw_filled_rect(menuX + menuW, menuY, 350, menuH+97, 25, 25, 25, 255)
@@ -2014,10 +2014,10 @@ function DrawSubtab(subtype)
                                 queueselected = true
                                 QueueSong(u)
                             else
-                                surface.draw_text(menuX + menuW + 314, menuY + 89 + (45 * fart), 245, 245, 245, 255, SubtabTitleHUD, "+")
+                                surface.draw_text(menuX + menuW + 314, menuY + 89 + (45 * fart), 255, 255, 255, 255, SubtabTitleHUD, "+")
                             end
                         else
-                            surface.draw_text(menuX + menuW + 314, menuY + 89 + (45 * fart), 190, 190, 190, 255, SubtabTitleHUD, "+")
+                            surface.draw_text(menuX + menuW + 314, menuY + 89 + (45 * fart), 180, 180, 180, 255, SubtabTitleHUD, "+")
                             queuecheck = false
                         end
 
