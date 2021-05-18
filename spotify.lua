@@ -66,6 +66,8 @@ ffi.cdef[[
     typedef bool (__thiscall *IsButtonDown_t)(void*, int);
     typedef int (__thiscall *GetAnalogValue_t)(void*, int);
 	typedef int (__thiscall *GetAnalogDelta_t)(void*, int);
+    typedef void***(__thiscall* FindHudElement_t)(void*, const char*);
+    typedef void(__cdecl* ChatPrintf_t)(void*, int, int, const char*, ...);
 ]]
 
 local native_GetClipboardTextCount = vtable_bind("vgui2.dll", "VGUI_System010", 7, "int(__thiscall*)(void*)")
@@ -81,6 +83,20 @@ local raw_GetAnalogDelta = input_vmt[19]
 local IsButtonDown = ffi.cast('IsButtonDown_t', raw_IsButtonDown)
 local GetAnalogValue = ffi.cast('GetAnalogValue_t', raw_GetAnalogValue)
 local GetAnalogDelta = ffi.cast('GetAnalogDelta_t', raw_GetAnalogDelta)
+local signature_gHud = "\xB9\xCC\xCC\xCC\xCC\x88\x46\x09"
+local signature_FindElement = "\x55\x8B\xEC\x53\x8B\x5D\x08\x56\x57\x8B\xF9\x33\xF6\x39\x77\x28"
+local match = client.find_signature("client_panorama.dll", signature_gHud) or error("sig1 not found")
+local hud = ffi.cast("void**", ffi.cast("char*", match) + 1)[0] or error("hud is nil")
+match = client.find_signature("client_panorama.dll", signature_FindElement) or error("FindHudElement not found")
+local find_hud_element = ffi.cast("FindHudElement_t", match)
+local hudchat = find_hud_element(hud, "CHudChat") or error("CHudChat not found")
+local chudchat_vtbl = hudchat[0] or error("CHudChat instance vtable is nil")
+local print_to_chat = ffi.cast("ChatPrintf_t", chudchat_vtbl[27])
+
+local function print_chat(text)
+    print_to_chat(hudchat, 0, 0, text)
+end
+
 local mouse_state = {}
 
 retardedJpg = false
@@ -131,6 +147,7 @@ TrackCount = 0
 scrollvalue = 0
 last_analogvalue = 0
 
+CurrentSong = "-"
 AuthStatus = "> Not connected"
 deviceid = ""
 UserName = "-"
@@ -625,7 +642,7 @@ local elements = {
         DecreaseVolume = ui_new_hotkey("MISC", "Miscellaneous", "  - Volume down", false),
         AdaptiveVolume = ui_new_slider("MISC", "Miscellaneous", "Decrease volume by % on voicechat", 0, 100, "off", true, "%", 1, { [0] = "off", [100] = "mute"}),
 
-
+    ChatSongTeller = ui_new_checkbox("MISC", "Miscellaneous", "Print song change into local chat"),
     ClantagCheckbox = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
     HigherUpdateRate = ui_new_checkbox("MISC", "Miscellaneous", "Higher update rate (experimental)"),
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
@@ -788,6 +805,7 @@ function ShowMenuElements()
         ui_set_visible(elements.ResetAuth, true)
         ui_set_visible(elements.MenuBarEnable, true)
         ui_set_visible(elements.HigherUpdateRate, true)
+        ui_set_visible(elements.ChatSongTeller, true)
 
         if ui_get(elements.IndicType) == "Spotify" then
             ui_set_visible(elements.ArtButton, true)
@@ -2061,6 +2079,13 @@ function DrawSubtab(subtype)
 end
   
 function SpotifyClantag()
+    if ui_get(elements.ChatSongTeller) then
+        if CurrentSong ~= SongName then
+            print_chat(" \x06[spotify.lua] ♫ \x01Changed song to "..SongName.." by "..ArtistName)
+            CurrentSong = SongName
+        end
+    end
+    
     if not ui_get(elements.ClantagCheckbox) then return end
     local splitClantagName = splitByChunk(SongName, 15)
     local splitClantagArtist = splitByChunk(ArtistName, 15)
