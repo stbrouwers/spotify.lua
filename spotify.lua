@@ -26,6 +26,7 @@ local last_update_error = client.unix_time()
 local last_update_volume = globals.tickcount()
 local last_update_volume_press = globals.tickcount()
 local last_update_volume_set = globals.tickcount()
+local last_update_server = client.unix_time()
 local last_tick = globals.tickcount()
 local sx, sy = client.screen_size()
 
@@ -48,6 +49,7 @@ local SubtabRowFontHUD = surface.create_font("GothamBookItalic", 23, 500, 0x010)
 local SubtabRowFontHUD2 = surface.create_font("GothamBookItalic", 17, 500, 0x010)
 local SubtabTrackFontHUD2 = surface.create_font("GothamBookItalic", 19, 800, 0x010)
 local SubtabArtistFontHUD2 = surface.create_font("GothamBookItalic", 12, 500, 0x010)
+local SubtabRowFontHUD3 = surface.create_font("GothamBookItalic", 24, 500, 0x010)
 
 local VolumeFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
 
@@ -138,8 +140,8 @@ SongNameHUD = "-"
 ArtistNameHUD = "-"
 SongProgression = "-"
 SongLength = "-"
-TotalDuration = "-"
 ProgressDuration = "-"
+TotalDuration = "-"
 LeftDuration = "-"
 SongNameBack = "-"
 HoveringOver = "none"
@@ -167,7 +169,6 @@ end
 local scrollstate = mouse_state.new()
 
 function mouse_state:init()
-    print("Mouse Wheel State : ", GetAnalogDelta(inputsystem, 0x03) == 0 and "Middle" or GetAnalogDelta(inputsystem, 0x03) == 1 and "Up" or "Down", " Distance : ", GetAnalogValue(inputsystem, 0x03))
     if not self.init then
         self.tape = 0
         self.laststate = GetAnalogDelta(inputsystem, 0x03)
@@ -195,7 +196,6 @@ function mouse_state:init()
     elseif GetAnalogValue(inputsystem, 0x03) <= last_analogvalue - 1 and not scrollmax then
         scrollvalue = scrollvalue - 1
     end
-    print(scrollvalue)
     last_analogvalue = GetAnalogValue(inputsystem, 0x03)
 end
 
@@ -396,6 +396,7 @@ function UpdateInf()
                 AuthStatus = "TOKEN"
                 ErrorSpree = ErrorSpree + 1
                 TotalErrors = TotalErrors + 1
+                UpdateWaitCheck = true
                 return 
             end
             CurrentDataSpotify = json.parse(response.body)
@@ -415,6 +416,7 @@ function UpdateInf()
                 SongNameHUD = CurrentDataSpotify.item.name
                 ArtistName = CurrentDataSpotify.item.artists[1].name
                 ArtistNameHUD = CurrentDataSpotify.item.artists[1].name
+                Currenturi = CurrentDataSpotify.item.uri
                 PlayState = "Playing"
             else
                 SongName = "Music paused"
@@ -492,7 +494,6 @@ function NextTrack()
     http.post("https://api.spotify.com/v1/me/player/next?device_id=" .. deviceid, options, function(s, r)
         UpdateCount = UpdateCount + 1
     end)   
-    UpdateInf()
 end
 
 function PreviousTrack()
@@ -509,7 +510,6 @@ function PreviousTrack()
     http.post("https://api.spotify.com/v1/me/player/previous?device_id=" .. deviceid, options, function(s, r)
         UpdateCount = UpdateCount + 1
     end)   
-    UpdateInf()
 end
 
 function ShuffleToggle()
@@ -693,6 +693,10 @@ function PlaySong(uri)
 
 end
 
+function QueueSong(uri)
+
+end
+
 function InitPlaylist(id)
     if id == nil then client.color_log(255, 0, 0, "Failed to add playlist. Make sure that you have your Playlist link in your clipboard, and that the formatting is correct. (https://open.spotify.com/playlist/6piHLVTmzq8nTix2wIlM8x?si=10c8288bd6fc4f94)") return end
     if string.find(Playlistcache, id) ~= nil then client.color_log(255, 0, 0, "You have already added this playlist!") return end
@@ -718,6 +722,7 @@ function LoadPlaylist(uri)
         if not s or r.status ~= 200 then return end
         currplaylist = {}
         currplaylistname = jekanker
+        currplaylisturi = moeder
         local temp = json.parse(r.body)
         for i, track in ipairs(temp.items) do
             TrackCount = TrackCount + 1
@@ -729,9 +734,8 @@ function LoadPlaylist(uri)
 end
 
 function AddPlaylist(uri)
-    local jekanker, moeder = string.match(uri, "(.*),(.*)")
     UpdateWaitCheck = true
-    http.get("https://api.spotify.com/v1/playlists/".. moeder .."/tracks?market=US&limit=100&offset=".. TrackCount .. "&access_token=" .. apikey, function(s, r)
+    http.get("https://api.spotify.com/v1/playlists/".. uri .."/tracks?market=US&limit=100&offset=".. TrackCount .. "&access_token=" .. apikey, function(s, r)
         if not s or r.status ~= 200 then return end
         local temp = json.parse(r.body)
         for i, track in ipairs(temp.items) do
@@ -1907,12 +1911,16 @@ function DrawSubtab(subtype)
 
     local startposxtr = {
         xtbtnX = 320, xtbtnY = 0,
-        scrlX = 10, scrlY = 121
+        scrlX = 10, scrlY = 121,
+        sngbtnX = 0, sngbtnY = 120,
+        lmbtnX = 118, lmbtnY = menuH
     }
 
     local endposxtr = {
         xtbtnX = 350, xtbtnY = 30,
-        scrlX = 340, scrlY = menuH
+        scrlX = 340, scrlY = menuH,
+        sngbtnX = 350, sngbtnY = 120,
+        lmbtnX = 220, lmbtnY = menuH+40
     }
 
     surface.draw_filled_rect(menuX + menuW, menuY, 350, menuH+97, 25, 25, 25, 255)
@@ -1957,10 +1965,8 @@ function DrawSubtab(subtype)
                 end
                 scrollstate:init()
             end
-        
-            print(maxvisibletracks)
+
             local fartball2021 = splitByChunk(currplaylistname, 25)
-            
             surface.draw_text(menuX + menuW + 15, menuY + 35, 210, 210, 210, 255, SubtabTitleHUD, fartball2021[1])
             surface.draw_filled_gradient_rect(menuX + menuW, menuY + 15, 350, 60, 25, 25, 25, 0, 25, 25, 25, 210, false)
             surface.draw_filled_gradient_rect(menuX + menuW + 250, menuY + 20, 70, 60, 25, 25, 25, 0, 25, 25, 25, 255, true)
@@ -1976,27 +1982,79 @@ function DrawSubtab(subtype)
             for i = maxvisibletracks, 1, -1 do
                 if scrollvalue*-1+fart <= TrackCount then
                     local n, a, d, u, img = string.match(currplaylist[scrollvalue*-1+fart].SongDetails, "(.*)^(.*)^(.*)^(.*)^(.*)")
-                    local sussypissyretard = splitByChunk(n, 30)
+                    local sussypissyretard = splitByChunk(n, 29)
 
                     if scrollvalue*-1+fart >= 100 then
-                        surface.draw_text(menuX + menuW + 11, menuY + 95 + (45 * fart), 180, 180, 180, 255, SubtabRowFontHUD2, tostring(scrollvalue*-1+fart))
+                        surface.draw_text(menuX + menuW + 12, menuY + 95 + (45 * fart), 180, 180, 180, 255, SubtabRowFontHUD2, tostring(scrollvalue*-1+fart))
                     elseif scrollvalue*-1+fart >= 10 then
                         surface.draw_text(menuX + menuW + 16, menuY + 95 + (45 * fart), 180, 180, 180, 255, SubtabRowFontHUD2, tostring(scrollvalue*-1+fart))
                     else
                         surface.draw_text(menuX + menuW + 20, menuY + 95 + (45 * fart), 180, 180, 180, 255, SubtabRowFontHUD2, tostring(scrollvalue*-1+fart))
                     end
 
-                    surface.draw_text(menuX + menuW + 48, menuY + 95 + (45 * fart-8), 255, 255, 255, 255, SubtabTrackFontHUD2, sussypissyretard[1])
+                    if Currenturi == u then
+                        surface.draw_text(menuX + menuW + 48, menuY + 95 + (45 * fart-8), 30, 215, 96, 255, SubtabTrackFontHUD2, sussypissyretard[1])
+                        surface.draw_filled_rect(menuX + menuW, menuY + 95 + (45 * fart-8), 43, 45, 25, 25, 25, 255)
+                        surface.draw_text(menuX + menuW + 16, menuY + 91 + (45 * fart), 30, 215, 96, 255, SubtabRowFontHUD3, "►")
+                    else
+                        surface.draw_text(menuX + menuW + 48, menuY + 95 + (45 * fart-8), 255, 255, 255, 255, SubtabTrackFontHUD2, sussypissyretard[1])
+                    end
+                    
                     surface.draw_text(menuX + menuW + 48, menuY + 95 + (45 * fart+12), 150, 150, 150, 255, SubtabArtistFontHUD2, a)
                     surface.draw_filled_gradient_rect(menuX + menuW + 270, menuY + 120, 40, menuH, 25, 25, 25, 0, 25, 25, 25, 255, true)
-                    surface.draw_text(menuX + menuW + 310, menuY + 95 + (45 * fart), 150, 150, 150, 255, SubtabArtistFontHUD2, msConversion(d))
 
+                    if MouseHudrightPosX >= startposxtr.sngbtnX and MouseHudrightPosX <= endposxtr.sngbtnX and ExtendedMousePosY >= (startposxtr.sngbtnY + (45*(fart-1))) and ExtendedMousePosY <= (endposxtr.sngbtnY + (45*fart)) then
+                        if MouseHudrightPosX >= startposxtr.sngbtnX + 300 and MouseHudrightPosX <= endposxtr.sngbtnX and ExtendedMousePosY >= (startposxtr.sngbtnY + (45*(fart-1))) and ExtendedMousePosY <= (endposxtr.sngbtnY + (45*fart)) then
+                            queuecheck = true
+                            if LClick then
+                                julliekankermoeders = true
+                                surface.draw_text(menuX + menuW + 314, menuY + 89 + (45 * fart), 90, 90, 90, 255, SubtabTitleHUD, "+")
+                            elseif julliekankermoeders == true then
+                                julliekankermoeders = false
+                                queueselected = true
+                                QueueSong(u)
+                            else
+                                surface.draw_text(menuX + menuW + 314, menuY + 89 + (45 * fart), 245, 245, 245, 255, SubtabTitleHUD, "+")
+                            end
+                        else
+                            surface.draw_text(menuX + menuW + 314, menuY + 89 + (45 * fart), 190, 190, 190, 255, SubtabTitleHUD, "+")
+                            queuecheck = false
+                        end
+
+                        if LClick and not queuecheck then
+                            julliekankermoeders = true
+                            renderer.rectangle(menuX + menuW, menuY + 125 + (45 * (fart-1)), 350, 45, 150, 150, 150, 20)
+                        elseif julliekankermoeders == true and not queuecheck then
+                            julliekankermoeders = false
+                            PlaySong(u)
+                        else
+                            renderer.rectangle(menuX + menuW, menuY + 125 + (45 * (fart-1)), 350, 45, 150, 150, 150, 50)
+                        end
+                    else
+                        surface.draw_text(menuX + menuW + 310, menuY + 96 + (45 * fart), 150, 150, 150, 255, SubtabArtistFontHUD2, msConversion(d))
+                    end
                     fart = fart + 1
                 end
             end
 
+            if scrollmax and TrackCount >= 100 then 
+                if MouseHudrightPosX >= startposxtr.lmbtnX and MouseHudrightPosX <= endposxtr.lmbtnX and ExtendedMousePosY >= startposxtr.lmbtnY and ExtendedMousePosY <= endposxtr.lmbtnY then
+                    if LClick and not queuecheck then
+                        julliekankermoeders = true
+                        surface.draw_text(menuX + menuW + 118, menuY + menuH, 150, 150, 150, 255, SubtabRowFontHUD3, "LOAD MORE")
+                    elseif julliekankermoeders == true and not queuecheck then
+                        julliekankermoeders = false
+                        AddPlaylist(currplaylisturi)
+                    else
+                        surface.draw_text(menuX + menuW + 118, menuY + menuH, 255, 255, 255, 255, SubtabRowFontHUD3, "LOAD MORE")
+                    end
+                else
+                    surface.draw_text(menuX + menuW + 118, menuY + menuH, 150, 150, 150, 255, SubtabRowFontHUD3, "LOAD MORE")
+                end
+            end
+
             if TrackCount > maxvisibletracks then
-                --renderer.rectangle(menuX + menuW + 340, menuY + 120 + (),  45, 45, 45, 255)
+                renderer.rectangle(menuX + menuW + 342, menuY + 120 + ((maxvisibletracks*44)/(TrackCount-maxvisibletracks))*(scrollvalue)*-1, 3, 10, 90, 90, 90, 255)
             end
         end
     }
@@ -2028,10 +2086,11 @@ function OnFrame()
     if not apikey then return end 
     
     if client.unix_time() > last_update + ui_get(elements.UpdateRate) then
+
         UpdateInf()
-        last_update = client.unix_time()
         UpdateCount = UpdateCount + 1
-        
+        last_update = client.unix_time()
+
         ui_set(elements.SessionUpdates, "Total updates this session: " .. UpdateCount)
         ui_set(elements.TotalErrors, "Errors this session: " .. TotalErrors)
         ui_set(elements.SpreeErrors, "Errors this spree: " .. ErrorSpree)
