@@ -1,6 +1,6 @@
-local surface = require "gamesense/surface"
-local http = require "gamesense/http"
-local images = require "gamesense/images"
+local surface = require "gamesense/surface" or error('gamesense/surface library is required')
+local http = require "gamesense/http" or error('gamesense/http library is required')
+local images = require "gamesense/images" or error('gamesense/images library is required')
 local inspect = require "gamesense/inspect"
 local ffi = require "ffi"
 
@@ -20,6 +20,8 @@ local ui_new_color_picker = ui.new_color_picker
 local ui_new_hotkey = ui.new_hotkey
 local ui_new_multiselect = ui.new_multiselect
 local ui_menu_position = ui.menu_position
+local entity_get_local_player = entity.get_local_player
+local entity_get_prop = entity.get_prop
 local last_update = client.unix_time()
 local last_update_controls = client.unix_time()
 local last_update_error = client.unix_time()
@@ -126,6 +128,7 @@ PlaylistSelected = false
 PlaylistLimitReached = false
 scrollmin = true
 scrollmax = false
+SongTooLong = false
 
 SpotifyScaleX = sx/4.8
 SpotifyScaleY = sy/10.8
@@ -179,6 +182,14 @@ local function CP()
       native_GetClipboardText(0, char_arr, len)
       return ffi.string(char_arr, len-1)
     end
+end
+
+local function splitByChunk(text, chunkSize)
+    local s = {}
+    for i=1, #text, chunkSize do
+        s[#s+1] = text:sub(i,i+chunkSize - 1)
+    end
+    return s
 end
 
 function mouse_state.new()
@@ -579,9 +590,12 @@ local elements = {
     Connected = ui_new_label("MISC", "Miscellaneous", AuthStatus),
     AuthButton = ui_new_button("MISC", "Miscellaneous", "Authorize", function() AuthClicked = true Auth() end),
     IndicType = ui_new_combobox("MISC", "Miscellaneous", "Type", "Spotify", "Minimal"),
+    Additions = ui_new_multiselect("MISC", "Miscellaneous", "Additions", "Cover art", "Duration", "Vitals", "Fixed width"),
+    CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Art location", "Left", "Right"),
     MenuSize = ui_new_slider("MISC", "Miscellaneous", "Scale", 50, 150, 100, true, "%"),
     WidthLock = ui_new_label("MISC", "Miscellaneous", "⭥                        [LINKED]                         ⭥"),
     MinimumWidth = ui_new_slider("MISC", "Miscellaneous", "Minimum box width", 199, 600, 400, true, "px", 1, { [199] = "Auto"}),
+    FixedWidth = ui_new_slider("MISC", "Miscellaneous", "Box width", 200, 600, 400, true, "px", 1),
     
     DebugInfo = ui_new_checkbox("MISC", "Miscellaneous", "Debug info"),
         NowPlaying = ui_new_label("MISC", "Miscellaneous", "Now playing:" .. SongName),
@@ -605,10 +619,6 @@ local elements = {
 
     MenuBarEnable = ui_new_checkbox("MISC", "Miscellaneous", "Menu bar"),
         HideOriginIndic = ui_new_checkbox("MISC", "Miscellaneous", "Hide indicator while in menu"),
-
-    ArtButton = ui_new_checkbox("MISC", "Miscellaneous", "Cover art"),
-        CustomLayoutType = ui_new_combobox("MISC", "Miscellaneous", "Location", "Left", "Right"),
-        SongDurationToggle = ui_new_checkbox("MISC", "Miscellaneous", "Song duration"),
     
     CustomColors = ui_new_checkbox("MISC", "Miscellaneous", "Custom colors"),
         ProgressGradientSwitch = ui_new_checkbox("MISC", "Miscellaneous", "Gradient progress bar"),
@@ -824,6 +834,21 @@ local function intersect(x, y, w, h, debug)
     return rawmouseposX >= x and rawmouseposX <= x + w and rawmouseposY >= y and rawmouseposY <= y + h
 end
 
+local function contains(table, value)
+
+    if table == nil then
+        return false
+    end
+
+    table = ui_get(table)
+    for i=0, #table do
+        if table[i] == value then
+            return true
+        end
+    end
+    return false
+end
+
 function ShowMenuElements() 
     if ui_get(MainCheckbox) and Authed then
         ui_set_visible(elements.Connected, true)
@@ -838,17 +863,18 @@ function ShowMenuElements()
         ui_set_visible(elements.ControlSwitch, true)
         ui_set_visible(elements.ClantagCheckbox, true)
         ui_set_visible(elements.MenuSize, true)
-        ui_set_visible(elements.SongDurationToggle, true)
         ui_set_visible(elements.ResetAuth, true)
         ui_set_visible(elements.MenuBarEnable, true)
         ui_set_visible(elements.HigherUpdateRate, true)
         ui_set_visible(elements.ChatSongTeller, true)
 
         if ui_get(elements.IndicType) == "Spotify" then
-            ui_set_visible(elements.ArtButton, true)
             ui_set_visible(elements.WidthLock, ShiftClick)
-            ui_set_visible(elements.MinimumWidth, true)
-            ui_set_visible(elements.CustomLayoutType, ui_get(elements.ArtButton))
+            ui_set_visible(elements.MinimumWidth, not contains(elements.Additions, "Fixed width"))
+            ui_set_visible(elements.CustomLayoutType, contains(elements.Additions, "Cover art"))
+            ui_set_visible(elements.FixedWidth, contains(elements.Additions, "Fixed width"))
+            ui_set_visible(elements.Additions, true)
+
 
             if ui_get(elements.CustomColors) then
                 ui_set_visible(elements.ProgressGradientSwitch, true)
@@ -911,7 +937,6 @@ function ShowMenuElements()
             
         elseif ui_get(elements.IndicType) == "Minimal" then
             ui_set_visible(elements.MinimumWidth, false)
-            ui_set_visible(elements.ArtButton, false)
             ui_set_visible(elements.ProgressGradientSwitch, false)
             ui_set_visible(elements.BackgroundGradientSwitch, false)
             ui_set_visible(elements.BackgroundColour, false)
@@ -932,7 +957,10 @@ function ShowMenuElements()
             ui_set_visible(elements.LabelGradientColour, false)
             ui_set_visible(elements.MenuSize, false)
             ui_set_visible(elements.CustomLayoutType, false)
-            ui_set_visible(elements.SongDurationToggle, false)
+            ui_set_visible(elements.Additions, false)
+            ui_set_visible(elements.FixedWidth, false)
+
+
 
             if ui_get(elements.CustomColors) then
                 ui_set_visible(elements.GradientColour, true)
@@ -943,7 +971,6 @@ function ShowMenuElements()
             end
 
         else
-            ui_set_visible(elements.ArtButton, false)
             ui_set_visible(elements.MinimumWidth, false)
             ui_set_visible(elements.CustomLayoutType, false)
             ui_set_visible(elements.ProgressGradientSwitch, false)
@@ -1141,7 +1168,7 @@ function gaySexgamer()
     if gropeTits then
         analBuggery = globals.tickcount() % 64
     end
-    if ui.get(elements.IncreaseVolume) or ui_get(elements.DecreaseVolume) then bool = false else bool = true end
+    if ui_get(elements.IncreaseVolume) or ui_get(elements.DecreaseVolume) then bool = false else bool = true end
     if not bool then
         molestingInfants = true
         gropeTits = false
@@ -1233,17 +1260,17 @@ local function Dragging()
     end
 
     if dragging and LClick then
-        if SpotifyIndicX <= -0.1 and not ui_get(elements.ArtButton)  then
+        if SpotifyIndicX <= -0.1 and not contains(elements.Additions, "Cover art") then
             SpotifyIndicX = 0
-        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and not ui_get(elements.ArtButton) then
+        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and not contains(elements.Additions, "Cover art") then
             SpotifyIndicX = sx - adaptivesize
-        elseif SpotifyIndicX - ArtScaleX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" and not ui_get(elements.IndicType) == "Minimal" then
+        elseif SpotifyIndicX - ArtScaleX <= -0.1 and contains(elements.Additions, "Cover art") and ui_get(elements.CustomLayoutType) == "Left" and not ui_get(elements.IndicType) == "Minimal" then
             SpotifyIndicX = ArtScaleX
-        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" and not ui_get(elements.IndicType) == "Minimal" then
+        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and contains(elements.Additions, "Cover art") and ui_get(elements.CustomLayoutType) == "Left" and not ui_get(elements.IndicType) == "Minimal" then
             SpotifyIndicX = sx - adaptivesize    
-        elseif SpotifyIndicX + adaptivesize + ArtScaleX >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" and not ui_get(elements.IndicType) == "Minimal" then
+        elseif SpotifyIndicX + adaptivesize + ArtScaleX >= sx+0.1 and contains(elements.Additions, "Cover art") and ui_get(elements.CustomLayoutType) == "Right" and not ui_get(elements.IndicType) == "Minimal" then
             SpotifyIndicX = sx - adaptivesize - ArtScaleX
-        elseif SpotifyIndicX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" and not ui_get(elements.IndicType) == "Minimal" then
+        elseif SpotifyIndicX <= -0.1 and contains(elements.Additions, "Cover art") and ui_get(elements.CustomLayoutType) == "Right" and not ui_get(elements.IndicType) == "Minimal" then
             SpotifyIndicX = 0
         else
             SpotifyIndicX = rawmouseposX - xdrag
@@ -1271,19 +1298,41 @@ local function AdjustSize()
     titlex, titley = surface.get_text_size(TitleFont, SongName)+50
     artistx, artisty = surface.get_text_size(ArtistFont, ArtistName)+50
 
-    if titlex > artistx then
-        adaptivesize = titlex
+    if contains(elements.Additions, "Fixed width") then
+        adaptivesize = ui_get(elements.FixedWidth)
+        if ui_get(elements.MenuSize) >= 100 then
+            ui_set(elements.MenuSize, 100) 
+        end
+
+        if titlex > adaptivesize then
+            if ui_get(elements.MenuSize) > 75 then
+                videogaming2021 = splitByChunk(SongName, round(adaptivesize/11))
+            else
+                videogaming2021 = splitByChunk(SongName, round(adaptivesize/8))
+            end
+            FixedSongName = tostring(videogaming2021[1])
+            SongTooLong = true
+        else
+            SongTooLong = false
+        end
+
     else
-        adaptivesize = artistx
-    end
+        SongTooLong = false
+        if titlex > artistx then
+            adaptivesize = titlex
+        else
+            adaptivesize = artistx
+        end
 
-    if ui_get(elements.MinimumWidth) > 199 and adaptivesize < ui.get(elements.MinimumWidth) then
-        adaptivesize = ui.get(elements.MinimumWidth)
-    end
 
-    if SongChanged and ui_get(elements.CustomLayoutType) == "Right" and ui_get(elements.IndicType) == "Spotify" then
-        SpotifyIndicX = SpotifyIndicX2 - adaptivesize
-        SongChanged = false
+        if ui_get(elements.MinimumWidth) > 199 and adaptivesize < ui_get(elements.MinimumWidth) then
+            adaptivesize = ui_get(elements.MinimumWidth)
+        end
+
+        if SongChanged and ui_get(elements.CustomLayoutType) == "Right" and ui_get(elements.IndicType) == "Spotify" then
+            SpotifyIndicX = SpotifyIndicX2 - adaptivesize
+            SongChanged = false
+        end
     end
 
     if ui_get(elements.IndicType) == "Minimal" then
@@ -1295,17 +1344,17 @@ local function AdjustSize()
     end
 
     if ui_get(elements.IndicType) == "Spotify" then
-        if SpotifyIndicX <= -0.1 and not ui_get(elements.ArtButton) then
+        if SpotifyIndicX <= -0.1 and not contains(elements.Additions, "Cover art") then
             SpotifyIndicX = 0
-        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and not ui_get(elements.ArtButton) then
+        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and not contains(elements.Additions, "Cover art") then
             SpotifyIndicX = sx - adaptivesize
-        elseif SpotifyIndicX - ArtScaleX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" then
+        elseif SpotifyIndicX - ArtScaleX <= -0.1 and contains(elements.Additions, "Cover art") and ui_get(elements.CustomLayoutType) == "Left" then
             SpotifyIndicX = ArtScaleX
-        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Left" then
+        elseif SpotifyIndicX + adaptivesize >= sx+0.1 and contains(elements.Additions, "Cover art") and ui_get(elements.CustomLayoutType) == "Left" then
             SpotifyIndicX = sx - adaptivesize    
-        elseif SpotifyIndicX + adaptivesize + ArtScaleX >= sx+0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" then
+        elseif SpotifyIndicX + adaptivesize + ArtScaleX >= sx+0.1 and contains(elements.Additions, "Cover art") and ui_get(elements.CustomLayoutType) == "Right" then
             SpotifyIndicX = sx - adaptivesize - ArtScaleX
-        elseif SpotifyIndicX <= -0.1 and ui_get(elements.ArtButton) and ui_get(elements.CustomLayoutType) == "Right" then
+        elseif SpotifyIndicX <= -0.1 and contains(elements.Additions, "Cover art") and ui_get(elements.CustomLayoutType) == "Right" then
             SpotifyIndicX = 0
         end
     end
@@ -1326,18 +1375,18 @@ local function CustomLayout()
     if ui_get(elements.MenuBarEnable) and ui_get(elements.HideOriginIndic) and ui.is_menu_open() then return end
     ArtScaleX, ArtScaleY = SpotifyScaleY, SpotifyScaleY
     if ui_get(elements.CustomColors) then
-        tr1, tg1, tb1, ta1 = ui.get(elements.TextColorPrimary)
-        tr2, tg2, tb2, ta2 = ui.get(elements.TextColorSecondary)
+        tr1, tg1, tb1, ta1 = ui_get(elements.TextColorPrimary)
+        tr2, tg2, tb2, ta2 = ui_get(elements.TextColorSecondary)
     else
         tr1, tg1, tb1, ta1 = 255,255,255,255
         tr2, tg2, tb2, ta2 = 159,159,159,255
     end
     
-    if ui_get(elements.ArtButton) then
+    if contains(elements.Additions, "Cover art") then
         switch(ui_get(elements.CustomLayoutType)) {
         
             Left = function()
-                if ui_get(elements.ArtButton) and Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
+                if contains(elements.Additions, "Cover art") and Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
                     local function drawLeft()
                         Thumbnail:draw(SpotifyIndicX-ArtScaleX, SpotifyIndicY, ArtScaleX, ArtScaleY)
                     end
@@ -1346,16 +1395,19 @@ local function CustomLayout()
                         retardedJpg = true
                     end
                 else end
-                surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
-
+                if SongTooLong then
+                    surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, FixedSongName)
+                else
+                    surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                end
                 surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                if ui_get(elements.SongDurationToggle) then
+                if contains(elements.Additions, "Duration") then
                     surface.draw_text(SpotifyIndicX+adaptivesize-(SpotifyScaleY/100)*85, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
                 end
             end,
 
             Right = function()
-                if ui_get(elements.ArtButton) and Thumbnail ~= nil then
+                if contains(elements.Additions, "Cover art") and Thumbnail ~= nil then
                     local function drawRight()
                         Thumbnail:draw(SpotifyIndicX+adaptivesize, SpotifyIndicY, ArtScaleX, ArtScaleY)
                     end
@@ -1364,18 +1416,27 @@ local function CustomLayout()
                         retardedJpg = true
                     end
                     else end
-                surface.draw_text(SpotifyIndicX + adaptivesize - titlex +40, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                if SongTooLong then
+                    surface.draw_text(SpotifyIndicX + adaptivesize - titlex +40, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, FixedSongName)
+                else
+                    surface.draw_text(SpotifyIndicX + adaptivesize - titlex +40, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+                end
                 surface.draw_text(SpotifyIndicX + adaptivesize - artistx +40, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
-                if ui_get(elements.SongDurationToggle) then
+                if contains(elements.Additions, "Duration") then
                     surface.draw_text(SpotifyIndicX+8, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
                 end
             end
         }
     else 
-        surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+        if SongTooLong then
+            surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, FixedSongName)
+        else
+            surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*22, tr1, tg1, tb1, ta1, TitleFont, SongName)
+        end
+
         surface.draw_text(SpotifyIndicX+10, SpotifyIndicY+(SpotifyScaleY/100)*52, tr2, tg2, tb2, ta2, ArtistFont, ArtistName)
 
-        if ui_get(elements.SongDurationToggle) then
+        if contains(elements.Additions, "Duration") then
             surface.draw_text(SpotifyIndicX+adaptivesize-(SpotifyScaleY/100)*85, SpotifyIndicY+(SpotifyScaleY/100)*67, tr2, tg2, tb2, ta2, DurationFont, ProgressDuration .. "/" .. TotalDuration)
         end
     end
@@ -1386,12 +1447,12 @@ local volume_drawer=(function()local a={callback_registered=false,maximum_count=
         
 local function DrawNowPlaying()
     if ui_get(elements.CustomColors) then
-        r, g, b, a = ui.get(elements.GradientColour)
-        br, bg, bb, ba = ui.get(elements.BackgroundColour)
-        gr1, gg1, gb1, ga1 = ui.get(elements.ProgressGradient1)
-        gr2, gg2, gb2, ga2 = ui.get(elements.ProgressGradient2)
-        br1, bg1, bb1, ba1 = ui.get(elements.BackgroundColorGradient1)
-        br2, bg2, bb2, ba2 = ui.get(elements.BackgroundColorGradient2)
+        r, g, b, a = ui_get(elements.GradientColour)
+        br, bg, bb, ba = ui_get(elements.BackgroundColour)
+        gr1, gg1, gb1, ga1 = ui_get(elements.ProgressGradient1)
+        gr2, gg2, gb2, ga2 = ui_get(elements.ProgressGradient2)
+        br1, bg1, bb1, ba1 = ui_get(elements.BackgroundColorGradient1)
+        br2, bg2, bb2, ba2 = ui_get(elements.BackgroundColorGradient2)
     else
         r, g, b, a =  0, 255, 0, 255
         br, bg, bb, ba = 25, 25, 25, 255
@@ -1415,12 +1476,12 @@ local function DrawNowPlaying()
             if ui_get(elements.MenuBarEnable) and ui_get(elements.HideOriginIndic) and ui.is_menu_open() then return end
             SpotifyScaleX = sx/MenuScaleX
             SpotifyScaleY = sy/MenuScaleY
-            if ui_get(elements.CustomLayoutType) == "Left" and ui_get(elements.ArtButton) then
+            if ui_get(elements.CustomLayoutType) == "Left" and contains(elements.Additions, "Cover art") then
                 surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba)
                 surface.draw_filled_rect(SpotifyIndicX-ArtScaleX, SpotifyIndicY, SpotifyScaleY, SpotifyScaleY, 18, 18, 18, 255)
                 renderer.circle_outline(SpotifyIndicX-ArtScaleX/2, SpotifyIndicY+SpotifyScaleY/2, 64, 64, 64, 255, SpotifyScaleY/10, 0, 1, 3)
                 renderer.circle_outline(SpotifyIndicX-ArtScaleX/2, SpotifyIndicY+SpotifyScaleY/2, 64, 64, 64, 255, (SpotifyScaleY/100)*35, 0, 1, 3)
-            elseif ui_get(elements.CustomLayoutType) == "Right" and ui_get(elements.ArtButton) then 
+            elseif ui_get(elements.CustomLayoutType) == "Right" and contains(elements.Additions, "Cover art") then 
                 surface.draw_filled_rect(SpotifyIndicX, SpotifyIndicY, adaptivesize, SpotifyScaleY, br, bg, bb, ba) 
                 surface.draw_filled_rect(SpotifyIndicX+adaptivesize, SpotifyIndicY, ArtScaleX, ArtScaleX, 18, 18, 18, 255)
                 renderer.circle_outline(SpotifyIndicX+adaptivesize+ArtScaleX/2, SpotifyIndicY+SpotifyScaleY/2, 64, 64, 64, 255, SpotifyScaleY/10, 0, 1, 3)
@@ -1473,6 +1534,42 @@ local function DrawNowPlaying()
     }
 end
 
+function DrawIngame()
+    if ui_get(elements.IndicType) ~= "Spotify" or not Authed then return end
+    local local_player = entity_get_local_player()
+    if local_player == nil then return end
+
+
+
+    if contains(elements.Additions, "Vitals") then
+        local health = math.min(100, entity_get_prop(local_player, 'm_iHealth'))
+        local hpclr = 255
+
+        if health > 20 then
+            hpclr = 255
+        else
+            hpclr = 20
+        end
+
+        if contains(elements.Additions, "Cover art") then
+            switch(ui_get(elements.CustomLayoutType)) {
+            
+                Left = function()
+                    surface.draw_filled_rect(SpotifyIndicX+(adaptivesize), SpotifyIndicY+SpotifyScaleY-(SpotifyScaleY/100*health), 5, SpotifyScaleY/100*health, 255, hpclr, hpclr, 255)
+                    surface.draw_text(SpotifyIndicX+(adaptivesize)+10, SpotifyIndicY+SpotifyScaleY-(SpotifyScaleY/100*health)-SpotifyScaleY/6, 255, hpclr, hpclr, 255, TitleFont, "+" .. tostring(health))
+                end,
+    
+                Right = function()
+                    surface.draw_filled_rect(SpotifyIndicX-5, SpotifyIndicY+SpotifyScaleY-(SpotifyScaleY/100*health), 5, SpotifyScaleY/100*health, 255, hpclr, hpclr, 255)
+                end
+            }
+        else 
+            surface.draw_filled_rect(SpotifyIndicX+(adaptivesize), SpotifyIndicY+SpotifyScaleY-(SpotifyScaleY/100*health), 5, SpotifyScaleY/100*health, 255, hpclr, hpclr, 255)
+            surface.draw_text(SpotifyIndicX+(adaptivesize)+10, SpotifyIndicY+SpotifyScaleY-(SpotifyScaleY/100*health)-SpotifyScaleY/6, 255, hpclr, hpclr, 255, TitleFont, "+" .. tostring(health))
+        end
+    end
+end
+
 function ChangeMenuSize()
     MenuScaleChange = 2 - ui_get(elements.MenuSize)/100
     MenuScaleX = 4.8 * MenuScaleChange
@@ -1483,9 +1580,10 @@ function ChangeMenuSize()
     TitleFont = surface.create_font("GothamBookItalic", sy/ScaleTitle, 900, 0x010)
     ArtistFont = surface.create_font("GothamBookItalic", sy/ScaleArtist, 600, 0x010)
     DurationFont = surface.create_font("GothamBookItalic", sy/ScaleDuration, 600, 0x010)
-    local minwidth = ui_get(elements.MinimumWidth) 
-    if ShiftClick then 
+    if ShiftClick and not contains(elements.Additions, "Fixed width") then 
         ui_set(elements.MinimumWidth, ui_get(elements.MenuSize)/100 * 400) 
+    elseif ShiftClick then
+        ui_set(elements.FixedWidth, ui_get(elements.MenuSize)/100 * 400) 
     end
 end
 
@@ -1968,14 +2066,6 @@ function MenuBarAnimHandler()
     surface.draw_filled_rect(menuX - 225, menuY, 225, menuH - 225, 19, 19, 19, 255/200*AnimSizePerc)
 end
 
-local function splitByChunk(text, chunkSize)
-    local s = {}
-    for i=1, #text, chunkSize do
-        s[#s+1] = text:sub(i,i+chunkSize - 1)
-    end
-    return s
-end
-
 function DrawSubtab(subtype) 
 
     local startposxtr = {
@@ -2289,7 +2379,6 @@ end
 
 ShowMenuElements()
 ui_set_callback(MainCheckbox, ShowMenuElements)
-ui_set_callback(elements.ArtButton, ShowMenuElements)
 ui_set_callback(elements.DebugInfo, ShowMenuElements)
 ui_set_callback(elements.CustomColors, ShowMenuElements)
 ui_set_callback(elements.MenuSize, ChangeMenuSize)
@@ -2305,6 +2394,8 @@ local qwq = mouse_state.new()
 qwq:init()
 
 client.set_event_callback("paint_ui", OnFrame)
+client.set_event_callback("paint", DrawIngame)
+
 client.set_event_callback('shutdown', function()
     database_write("previous_posX", SpotifyIndicX)
     database_write("previous_posY", SpotifyIndicY)
