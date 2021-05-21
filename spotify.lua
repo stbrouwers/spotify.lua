@@ -653,9 +653,10 @@ local elements = {
         DecreaseVolume = ui_new_hotkey("MISC", "Miscellaneous", "  - Volume down", false),
         AdaptiveVolume = ui_new_slider("MISC", "Miscellaneous", "Decrease volume by % on voicechat", 0, 100, "off", true, "%", 1, { [0] = "off", [100] = "mute"}),
 
-    ChatSongTeller = ui_new_checkbox("MISC", "Miscellaneous", "Print song change into local chat"),
-    ClantagCheckbox = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
-    HigherUpdateRate = ui_new_checkbox("MISC", "Miscellaneous", "Higher update rate (experimental)"),
+    ExtrasBox = ui_new_multiselect("MISC", "Miscellaneous", "Extras", "Print song changes in chat", "Now playing clantag", "Higher update rate (experimental)"),
+    --ChatSongTeller = ui_new_checkbox("MISC", "Miscellaneous", "Print song change into local chat"),
+    --ClantagCheckbox = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
+    --HigherUpdateRate = ui_new_checkbox("MISC", "Miscellaneous", "Higher update rate (experimental)"),
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
     KankerOp = ui_new_button("MISC", "Miscellaneous", "Reset playlists", function() database_write("savedplaylists", nil) Playlists = {} PlayListCount = 0 PlaylistLimitReached = false currplaylist = {} currplaylisturi = "" currplaylistname = "" TrackCount = 0 Playlistcache = "" database_write("playlistcache", Playlistcache) PlaylistSelected = false end),
 }
@@ -861,12 +862,13 @@ function ShowMenuElements()
         ui_set_visible(elements.LabelGradientColour, true)
         ui_set_visible(elements.CustomColors, true)
         ui_set_visible(elements.ControlSwitch, true)
-        ui_set_visible(elements.ClantagCheckbox, true)
+        --ui_set_visible(elements.ClantagCheckbox, true)
         ui_set_visible(elements.MenuSize, true)
         ui_set_visible(elements.ResetAuth, true)
         ui_set_visible(elements.MenuBarEnable, true)
-        ui_set_visible(elements.HigherUpdateRate, true)
-        ui_set_visible(elements.ChatSongTeller, true)
+        ui_set_visible(elements.ExtrasBox, true)
+        --ui_set_visible(elements.HigherUpdateRate, true)
+        --ui_set_visible(elements.ChatSongTeller, true)
 
         if ui_get(elements.IndicType) == "Spotify" then
             ui_set_visible(elements.WidthLock, ShiftClick)
@@ -2162,6 +2164,7 @@ function DrawSubtab(subtype)
                     end
                     
                     surface.draw_text(menuX + menuW + 48, menuY + 95 + (45 * fart+12), 150, 150, 150, 255, SubtabArtistFontHUD2, a)
+                    surface.draw_filled_gradient_rect(menuX + menuW + 270, menuY + 120, 40, menuH, 25, 25, 25, 0, 25, 25, 25, 255, true)
 
                     if MouseHudrightPosX >= startposxtr.sngbtnX and MouseHudrightPosX <= endposxtr.sngbtnX and ExtendedMousePosY >= (startposxtr.sngbtnY + (45*(fart-1))) and ExtendedMousePosY <= (endposxtr.sngbtnY + (45*fart)) then
                         if MouseHudrightPosX >= startposxtr.sngbtnX + 300 and MouseHudrightPosX <= endposxtr.sngbtnX and ExtendedMousePosY >= (startposxtr.sngbtnY + (45*(fart-1))) and ExtendedMousePosY <= (endposxtr.sngbtnY + (45*fart)) then
@@ -2194,7 +2197,6 @@ function DrawSubtab(subtype)
                         surface.draw_text(menuX + menuW + 310, menuY + 96 + (45 * fart), 150, 150, 150, 255, SubtabArtistFontHUD2, msConversion(d))
                     end
                     fart = fart + 1
-                    surface.draw_filled_gradient_rect(menuX + menuW + 270, menuY + 96, 40, menuH, 25, 25, 25, 0, 25, 25, 25, 255, true)
                 end
             end
 
@@ -2222,14 +2224,14 @@ function DrawSubtab(subtype)
 end
   
 function SpotifyClantag()
-    if ui_get(elements.ChatSongTeller) then
+    if contains(elements.ExtrasBox, "Print song changes in chat") then
         if CurrentSong ~= SongName then
             print_chat(" \x06[spotify.lua] ♫ \x01Changed song to "..SongName.." by "..ArtistName)
             CurrentSong = SongName
         end
     end
 
-    if not ui_get(elements.ClantagCheckbox) then return end
+    if not contains(elements.ExtrasBox, "Now playing clantag") then return end
     local splitClantagName = splitByChunk(SongName, 15)
     local splitClantagArtist = splitByChunk(ArtistName, 15)
     if SongName:len() > 15 and ArtistName:len() < 15 then
@@ -2383,8 +2385,8 @@ ui_set_callback(MainCheckbox, ShowMenuElements)
 ui_set_callback(elements.DebugInfo, ShowMenuElements)
 ui_set_callback(elements.CustomColors, ShowMenuElements)
 ui_set_callback(elements.MenuSize, ChangeMenuSize)
-ui_set_callback(elements.HigherUpdateRate, function() 
-    if ui_get(elements.HigherUpdateRate) then 
+ui_set_callback(elements.ExtrasBox, function() 
+    if contains(elements.ExtrasBox, "Higher update rate (experimental)") then 
         ui_set(elements.UpdateRate, 0)
     else
         ui_set(elements.UpdateRate, 1)
