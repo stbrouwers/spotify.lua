@@ -1536,6 +1536,7 @@ end
 
 function DrawIngame()
     if ui_get(elements.IndicType) ~= "Spotify" or not Authed then return end
+    if ui_get(elements.MenuBarEnable) and ui_get(elements.HideOriginIndic) and ui.is_menu_open() then return end
     local local_player = entity_get_local_player()
     if local_player == nil then return end
 
