@@ -163,6 +163,7 @@ LeftDuration = "-"
 SongNameBack = "-"
 HoveringOver = "none"
 RepeatState = "off"
+loadanim = "."
 AuthURL = "https://spotify.stbrouwers.cc/"
 
 local LoopUrl = "https://i.imgur.com/wREhluX.png"
@@ -646,7 +647,7 @@ local elements = {
     ClantagCheckbox = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
     HigherUpdateRate = ui_new_checkbox("MISC", "Miscellaneous", "Higher update rate (experimental)"),
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
-    KankerOp = ui_new_button("MISC", "Miscellaneous", "Reset playlists", function() database_write("savedplaylists", nil) Playlists = {} PlayListCount = 0 PlaylistLimitReached = false currplaylist = {} TrackCount = 0 Playlistcache = "" database_write("playlistcache", Playlistcache) PlaylistSelected = false end),
+    KankerOp = ui_new_button("MISC", "Miscellaneous", "Reset playlists", function() database_write("savedplaylists", nil) Playlists = {} PlayListCount = 0 PlaylistLimitReached = false currplaylist = {} currplaylisturi = "" currplaylistname = "" TrackCount = 0 Playlistcache = "" database_write("playlistcache", Playlistcache) PlaylistSelected = false end),
 }
 
 function ChangeVolume(Svol) 
@@ -706,12 +707,48 @@ function Seek(seekms)
     LeftDuration = msConversion(CurrentDataSpotify.item.duration_ms-SeekedTime)
 end
 
-function PlaySong(uri)
+function PlaySong(n, k, y, s)
 
+    local niggers = json.stringify({context_uri = "spotify:playlist:" .. currplaylisturi, offset = {position = n-1}, position_ms = 0})
+
+    local options = {
+        headers = {
+            ["Accept"] = "application/json",
+            ["Content-Type"] = "application/json",
+            ["Authorization"] = "Bearer " .. apikey,
+        },
+        body = niggers
+    }
+    
+    http.put("https://api.spotify.com/v1/me/player/play", options, function(s, r)
+        UpdateCount = UpdateCount + 1
+        if not success or response.status ~= 200 then return end
+        SongNameHUD = k
+        ArtistNameHUD = y
+        ThumbnailUrl = s
+
+        http.get(ThumbnailUrl, function(success, response)
+            if not success or response.status ~= 200 then
+              return
+            end
+        Thumbnail = images.load_jpg(response.body)
+        end)
+    end)
 end
 
 function QueueSong(uri)
+    local options = {
+        headers = {
+            ["Accept"] = "application/json",
+            ["Content-Type"] = "application/json",
+            ["Authorization"] = "Bearer " .. apikey,
+            ["Content-length"] = 0
+        }
+    }
 
+    http.post("https://api.spotify.com/v1/me/player/queue?uri=" .. uri .. "&device_id=" .. deviceid, options, function(s, r)
+        UpdateCount = UpdateCount + 1
+    end)
 end
 
 function InitPlaylist(id)
@@ -1911,33 +1948,24 @@ function MenuBarAnimHandler()
     local kaasje = AnimSizePerc - 100
 
     if AnimSizePerc <= 140 then
-        function bootyBitches()
             if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
                 Thumbnail:draw(menuX + 10 - (85/40*kaasje), menuY + menuH + 10, 75, 75)
             end
-        end
         renderer.rectangle(menuX - (225/40*kaasje), menuY + menuH - 3, 226/40*kaasje, 100, 18, 18, 18, 255)
     elseif AnimSizePerc == 150 then
-        function pussyBitches()
             if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
                 Thumbnail:draw(menuX - 225, menuY + menuH + 10, 225, 5)
             end
-        end
         renderer.rectangle(menuX - 225, menuY + menuH - 3, 226, 100, 18, 18, 18, 255)
     elseif AnimSizePerc >= 175 then
-        function cockBitches()
             if Thumbnail ~= nil and not CurrentDataSpotify.item.is_local then
                 Thumbnail:draw(menuX - 225, menuY + menuH + 0 - (225/25*tempsize), 225, 225/25*tempsize)
             end
-        end
         renderer.rectangle(menuX - 225, menuY + menuH - 3, 226, 100, 18, 18, 18, 255)
     else
         renderer.rectangle(menuX - 225, menuY + menuH - 3, 226, 100, 18, 18, 18, 255)
     end
     surface.draw_filled_rect(menuX - 225, menuY, 225, menuH - 225, 19, 19, 19, 255/200*AnimSizePerc)
-    pcall(cockBitches)
-    pcall(bootyBitches)
-    pcall(pussyBitches)
 end
 
 local function splitByChunk(text, chunkSize)
@@ -1987,6 +2015,7 @@ function DrawSubtab(subtype)
         search = function()
             surface.draw_text(menuX + menuW + 15, menuY + 35, 210, 210, 210, 255, SubtabTitleHUD, "Search") 
             surface.draw_filled_gradient_rect(menuX + menuW, menuY + 15, 350, 60, 25, 25, 25, 0, 25, 25, 25, 210, false)
+            surface.draw_text(menuX + menuW + 15, menuY + 100, 210, 210, 210, 255, SubtabRowFontHUD, "This feature is still in development :)") 
         end,
 
         playlist = function()
@@ -2067,7 +2096,7 @@ function DrawSubtab(subtype)
                             renderer.rectangle(menuX + menuW, menuY + 125 + (45 * (fart-1)), 350, 45, 150, 150, 150, 20)
                         elseif julliekankermoeders == true and not queuecheck then
                             julliekankermoeders = false
-                            PlaySong(u)
+                            PlaySong(scrollvalue*-1+fart, n, a, img)
                         else
                             renderer.rectangle(menuX + menuW, menuY + 125 + (45 * (fart-1)), 350, 45, 150, 150, 150, 50)
                         end
@@ -2134,7 +2163,7 @@ function OnFrame()
     if not apikey then return end 
     
     if client.unix_time() > last_update + ui_get(elements.UpdateRate) then
-
+        loadanim = loadanim .. "."
         UpdateInf()
         UpdateCount = UpdateCount + 1
         last_update = client.unix_time()
@@ -2150,7 +2179,7 @@ function OnFrame()
             GetApiToken()
 
             if AuthStatus == "TOKEN" then
-                ui_set(elements.Connected, "> Please play a song before authorising. If you are listening then your token has expired.")
+                ui_set(elements.Connected, "Connecting".. loadanim)
             end
         end
     end
