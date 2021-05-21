@@ -2298,7 +2298,7 @@ function OnFrame()
         end
 
         if ui_get(elements.IndicType) == "Spotify" then CustomLayout() end
-        if ui_get(elements.ClantagCheckbox) then SpotifyClantag() end
+        SpotifyClantag()
 
         mouseposX = mousepos[1] - SpotifyIndicX
         mouseposY = mousepos[2] - SpotifyIndicY
