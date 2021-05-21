@@ -427,6 +427,7 @@ function UpdateInf()
                 return 
             end
             CurrentDataSpotify = json.parse(response.body)
+            if CurrentDataSpotify == nil then return end
             deviceid = CurrentDataSpotify.device.id
 
             if RunOnceCheck == false then
@@ -1365,7 +1366,7 @@ local c = {130, 130, 130}
 local g, h = 255, 0
 local l = {30, 150}
 
-local function CustomLayout() 
+local function CustomLayout()
     if ui_get(elements.MenuBarEnable) and ui_get(elements.HideOriginIndic) and ui.is_menu_open() then return end
     ArtScaleX, ArtScaleY = SpotifyScaleY, SpotifyScaleY
     if ui_get(elements.CustomColors) then
