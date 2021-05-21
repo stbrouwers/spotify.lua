@@ -287,8 +287,6 @@ else
         PlayListCount = PlayListCount + 1
     end
 end
-print(inspect(database_read("savedplaylists")))
-
 
 switch = function(check)                                        
     return function(cases)
@@ -654,9 +652,6 @@ local elements = {
         AdaptiveVolume = ui_new_slider("MISC", "Miscellaneous", "Decrease volume by % on voicechat", 0, 100, "off", true, "%", 1, { [0] = "off", [100] = "mute"}),
 
     ExtrasBox = ui_new_multiselect("MISC", "Miscellaneous", "Extras", "Print song changes in chat", "Now playing clantag", "Higher update rate (experimental)"),
-    --ChatSongTeller = ui_new_checkbox("MISC", "Miscellaneous", "Print song change into local chat"),
-    --ClantagCheckbox = ui_new_checkbox("MISC", "Miscellaneous", "Now playing clantag"),
-    --HigherUpdateRate = ui_new_checkbox("MISC", "Miscellaneous", "Higher update rate (experimental)"),
     ResetAuth = ui_new_button("MISC", "Miscellaneous", "Reset authorization", function() ResetAPI() end),
     KankerOp = ui_new_button("MISC", "Miscellaneous", "Reset playlists", function() database_write("savedplaylists", nil) Playlists = {} PlayListCount = 0 PlaylistLimitReached = false currplaylist = {} currplaylisturi = "" currplaylistname = "" TrackCount = 0 Playlistcache = "" database_write("playlistcache", Playlistcache) PlaylistSelected = false end),
 }
@@ -862,13 +857,10 @@ function ShowMenuElements()
         ui_set_visible(elements.LabelGradientColour, true)
         ui_set_visible(elements.CustomColors, true)
         ui_set_visible(elements.ControlSwitch, true)
-        --ui_set_visible(elements.ClantagCheckbox, true)
         ui_set_visible(elements.MenuSize, true)
         ui_set_visible(elements.ResetAuth, true)
         ui_set_visible(elements.MenuBarEnable, true)
         ui_set_visible(elements.ExtrasBox, true)
-        --ui_set_visible(elements.HigherUpdateRate, true)
-        --ui_set_visible(elements.ChatSongTeller, true)
 
         if ui_get(elements.IndicType) == "Spotify" then
             ui_set_visible(elements.WidthLock, ShiftClick)
