@@ -2162,7 +2162,6 @@ function DrawSubtab(subtype)
                     end
                     
                     surface.draw_text(menuX + menuW + 48, menuY + 95 + (45 * fart+12), 150, 150, 150, 255, SubtabArtistFontHUD2, a)
-                    surface.draw_filled_gradient_rect(menuX + menuW + 270, menuY + 120, 40, menuH, 25, 25, 25, 0, 25, 25, 25, 255, true)
 
                     if MouseHudrightPosX >= startposxtr.sngbtnX and MouseHudrightPosX <= endposxtr.sngbtnX and ExtendedMousePosY >= (startposxtr.sngbtnY + (45*(fart-1))) and ExtendedMousePosY <= (endposxtr.sngbtnY + (45*fart)) then
                         if MouseHudrightPosX >= startposxtr.sngbtnX + 300 and MouseHudrightPosX <= endposxtr.sngbtnX and ExtendedMousePosY >= (startposxtr.sngbtnY + (45*(fart-1))) and ExtendedMousePosY <= (endposxtr.sngbtnY + (45*fart)) then
@@ -2195,6 +2194,7 @@ function DrawSubtab(subtype)
                         surface.draw_text(menuX + menuW + 310, menuY + 96 + (45 * fart), 150, 150, 150, 255, SubtabArtistFontHUD2, msConversion(d))
                     end
                     fart = fart + 1
+                    surface.draw_filled_gradient_rect(menuX + menuW + 270, menuY + 96, 40, menuH, 25, 25, 25, 0, 25, 25, 25, 255, true)
                 end
             end
 
