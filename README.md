@@ -1,5 +1,5 @@
 # Spotify LUA Recoded Edition \[NOW PRIVATE!!!!!]
-spotify player for gamesense and neverlose!
+## spotify player for gamesense and neverlose!
 
 ![Art](https://i.imgur.com/qzr0u33.png)
 
