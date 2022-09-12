@@ -137,11 +137,30 @@ local hud = {
     w = dynamic.new(8, 1, 1, select(1, ui.menu_size())),
     h = dynamic.new(2, 1, 1, 75),
     bar_width = dynamic.new(2, 1, 1, 2),
+    bar_length = dynamic.new(3, 1, 1, 0),
     hover_alpha = dynamic.new(6, 1, 0.8, 255),
+    hover_movement  = dynamic.new(1.5, 1, 0.8, 0),
     play_alpha = dynamic.new(2, 1, 1, 0),
     next_alpha = dynamic.new(2, 1, 1, 0),
     back_alpha = dynamic.new(2, 1, 1, 0),
     song_name = "", -- so it adapts to menu size bratan kuku bra
+    cover_art_position = dynamic.new(4, 1, 1, 55),
+    extended = {
+        Left = {
+            false,
+            x = dynamic.new(8, 2, 1, select(1, ui.menu_position()-240)),
+            y = dynamic.new(8, 2, 1, select(2, ui.menu_position())),
+            w = dynamic.new(8, 1, 1, 230),
+            h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
+        },
+        Right = {
+            false,
+            x = dynamic.new(8, 2, 1, select(1, ui.menu_position()) + select(1, ui.menu_size()) + 10),
+            y = dynamic.new(8, 2, 1, select(2, ui.menu_position())),
+            w = dynamic.new(8, 1, 1, 300),
+            h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
+        },
+    }
 }
 
 local function open_page(page_url) 
@@ -299,6 +318,7 @@ end
 function draw_hud()
     if authentication.status == "COMPLETED" and ui.get(menu.options.hud) and ui.is_menu_open() and ui.get(menu.enable) then
         menu_position = {ui.menu_position()}
+        client.log("W: ".. hud.bar_width:get() .. ", L: " .. hud.bar_length:get() .. ", hW: " .. hud.w:get())
         menu_size = {ui.menu_size()}
         mouse_position = { ui.mouse_position() }
         hud_x = hud.x:update(globals.frametime(), menu_position[1], nil):get()
@@ -309,23 +329,42 @@ function draw_hud()
         surface.draw_filled_rect(hud_x+10,hud_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
         surface.draw_text(hud_x+30, hud_y+20, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
         if data.song_image then
-            data.song_image:draw(hud_x+10,hud_y+10,55,55)
+            data.song_image:draw(hud_x+10,hud_y+10,hud.cover_art_position:get(),55)
         end
-        surface.draw_text(hud_x+75, hud_y+10, 255, 255, 255, 255, fonts.title, data.song_name)
-        surface.draw_text(hud_x+75, hud_y+42, 255, 255, 255, 255, fonts.artist, data.artist_name)
+        surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+10, 255, 255, 255, 255, fonts.title, data.song_name)
+        surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+42, 255, 255, 255, 255, fonts.artist, data.artist_name)
         surface.draw_filled_gradient_rect(hud_x+390, hud_y, 30, hud_h, 26,26,26,0, 26,26,26,hud.hover_alpha:get(), true)
         surface.draw_filled_rect(hud_x+420,hud_y,hud_w-420,hud_h,26,26,26,hud.hover_alpha:get())
-        surface.draw_filled_rect(hud_x,hud_y+75-hud.bar_width:get(),(data.timestamp / data.duration)*hud_w,hud.bar_width:get(),0,255,0,255)
-        if intersect(hud_x,hud_y,hud_w,hud_h) then
+        if intersect(hud_x-10,hud_y,hud_w,hud_h) then
             hud.hover_alpha:update(globals.frametime(), 255, nil)
+            hud.hover_movement:update(globals.frametime(), 1, nil)
+            renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,255, 12, 180, 0.5)
+            renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
+            renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
+
+            if intersect(hud_x-12, hud_y+12, 13, 28) then
+                renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 255*hud.hover_movement:get())
+                renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 255*hud.hover_movement:get())
+                if client.key_state(0x01) and not clicked_once then
+                    hud.extended.Left[0] = true
+                    clicked_once = true
+                end
+            end
+
         else
             hud.hover_alpha:update(globals.frametime(), 0, nil)
+            hud.hover_movement:update(globals.frametime(), 0, nil)
+            renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,hud.hover_movement:get()*255, 12, 180, 0.5)
         end
         if intersect(hud_x,hud_y+65,hud_w,10) then
             hud.bar_width:update(globals.frametime(), 5, nil)
-            surface.draw_filled_rect(hud_x,hud_y+75-hud.bar_width:get(),mouse_position[1]-hud_x,hud.bar_width:get(),0,255,0,130)
+            hud.bar_length:update(globals.frametime(), (mouse_position[1]-hud_x)/hud_w, nil)
+            surface.draw_filled_rect(hud_x,hud_y+75-hud.bar_width:get(),(hud.bar_length:get()*hud_w),hud.bar_width:get(),0,255,0,255)
+            renderer.circle(mouse_position[1], hud_y+75-hud.bar_width:get()+2,255,255,255,255, hud.bar_width:get()*1.3, 0, 1)
         else
             hud.bar_width:update(globals.frametime(), 2, nil)
+            hud.bar_length:update(globals.frametime(), (data.timestamp / data.duration), nil)
+            surface.draw_filled_rect(hud_x,hud_y+75-hud.bar_width:get(),(hud.bar_length:get()*hud_w),hud.bar_width:get(),0,255,0,255)
         end
         if data.is_playing then
             renderer.text(hud_x+hud_w/2, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.play_alpha:get(),"c+",0,"⏸")
@@ -364,6 +403,28 @@ function draw_hud()
             hud.play_alpha:update(globals.frametime(), 0, nil)
             hud.back_alpha:update(globals.frametime(), 0, nil)
             hud.next_alpha:update(globals.frametime(), 0, nil)
+        end
+
+        if hud.extended.Left[0] then 
+            hud.cover_art_position:update(globals.frametime(), 0, nil)
+
+            xtl_x = hud.extended.Left.x:update(globals.frametime(), menu_position[1]-240, nil):get()
+            xtl_y = hud.extended.Left.y:update(globals.frametime(), menu_position[2], nil):get()
+            xtl_w = hud.extended.Left.w:get()
+            xtl_h = hud.extended.Left.h:update(globals.frametime(), menu_size[2]+85, nil):get()
+
+            surface.draw_filled_rect(xtl_x,xtl_y,xtl_w,40,26,26,26,255)
+            surface.draw_filled_rect(xtl_x,xtl_y+50,xtl_w,xtl_h-290,26,26,26,255)
+            surface.draw_filled_rect(xtl_x,xtl_y+menu_size[2]-145,xtl_w,230,26,26,26,255)
+            data.song_image:draw(xtl_x+8,xtl_y+menu_size[2]-137,214,214)
+        end
+        if hud.extended.Left[0] and hud.extended.Right[0] then
+            xtr_x = hud.extended.Right.x:update(globals.frametime(), menu_size[1]+10, nil):get()
+            xtr_y = hud.extended.Right.y:update(globals.frametime(), menu_position[2], nil):get()
+            xtr_w = hud.extended.Right.w:get()
+            xtr_h = hud.extended.Right.h:update(globals.frametime, menu_size[2]+85):get()
+
+            surface.draw_filled_rect(xtr_x,xtr_y,xtr_w,xtr_h,26,26,26,255)
         end
     end
 end
@@ -430,8 +491,8 @@ client.set_event_callback("paint_ui", function()
     update_data()
     handle_menu()
     get_window_colour()
-    --draw_hud()
-    _, __ = pcall(draw_hud)
+    draw_hud()
+    --_, __ = pcall(draw_hud)
     seek()
 end)
 
