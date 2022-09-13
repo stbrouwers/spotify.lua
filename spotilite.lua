@@ -69,6 +69,16 @@ function dynamic:get()
    return self.y
 end
 
+switch = function(check)                                        
+    return function(cases)
+        if type(cases[check]) == "function" then
+            return cases[check]()
+        elseif type(cases["default"] == "function") then
+            return cases["default"]()
+        end
+    end
+end
+
 local native_GetClipboardTextCount = vtable_bind("vgui2.dll", "VGUI_System010", 7, "int(__thiscall*)(void*)")
 local native_GetClipboardText = vtable_bind("vgui2.dll", "VGUI_System010", 11, "int(__thiscall*)(void*, int, const char*, int)")
 local new_char_arr = ffi.typeof("char[?]")
@@ -114,9 +124,9 @@ local data = {
     delay = client.unix_time() + 2,
     stored_name = "",
     colours = {
-        r = 13,
-        g = 13,
-        b = 13,
+        r =  dynamic.new(2, 0.8, 0.5, 13),
+        g =  dynamic.new(2, 0.8, 0.5, 13),
+        b =  dynamic.new(2, 0.8, 0.5, 13),
         a = 130
     }
 }
@@ -128,7 +138,7 @@ local window = {
     h = 60,
     offset = true,
     moving = false,
-    cover_art_position = dynamic.new(4, 1, 1, 0)
+    cover_art_position = dynamic.new(4, 1, 1, 0),
 }
 
 local hud = {
@@ -146,12 +156,23 @@ local hud = {
     song_name = "", -- so it adapts to menu size bratan kuku bra
     cover_art_position = dynamic.new(4, 1, 1, 55),
     extended = {
+        initpercentage = dynamic.new(8, 2, 1, 0),
         Left = {
             false,
             x = dynamic.new(8, 2, 1, select(1, ui.menu_position()-240)),
             y = dynamic.new(8, 2, 1, select(2, ui.menu_position())),
             w = dynamic.new(8, 1, 1, 230),
             h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
+
+            navigation = {
+                bar_height = {
+                    dynamic.new(2, 1, 1, -0.3),
+                    dynamic.new(2, 1, 1, -0.3),
+                    dynamic.new(2, 1, 1, -0.3),
+                    dynamic.new(2, 1, 1, -0.3),
+                    dynamic.new(2, 1, 1, -0.3),
+                }
+            }
         },
         Right = {
             false,
@@ -261,35 +282,35 @@ end
 
 function get_window_colour()
     if ui.get(menu.options.cover_art_colour) and data.song_name ~= data.stored_name then 
-        http.get(string.format("https://acc_47b62eabf4005d1:f0da0e0d69d47469ee237d2bc0bdb0c1@api.imagga.com/v2/colors?image_url=%s", data.image_url), {authorization = {"acc_47b62eabf4005d1", "f0da0e0d69d47469ee237d2bc0bdb0c1"},} ,function(s,r)
-            if r.body then
-                jsondata = json.parse(r.body)
-                local badChoice = jsondata.result.colors.background_colors[2] and jsondata.result.colors.background_colors[1].r < 30 and jsondata.result.colors.background_colors[1].g < 30 and jsondata.result.colors.background_colors[1].b < 30
-                data.colours.r = badChoice and tonumber(jsondata.result.colors.background_colors[2].r) or tonumber(jsondata.result.colors.background_colors[1].r)
-                data.colours.g = badChoice and tonumber(jsondata.result.colors.background_colors[2].g) or tonumber(jsondata.result.colors.background_colors[1].g)
-                data.colours.b = badChoice and tonumber(jsondata.result.colors.background_colors[2].b) or tonumber(jsondata.result.colors.background_colors[1].b)
-                data.colours.a = 130
-            end
+        http.post('https://spotify.stbrouwers.cc/image', { headers = { ['Content-Type'] = 'application/json' }, body = json.stringify({url = data.image_url}) }, function(s, res)
+            body = json.parse(res.body)
+            r, g ,b = body.color.r, body.color.g, body.color.b
         end)
+    
         if data.song_name then
             http.get(string.format('https://bigcock.black/spotify/save.php?user=%s&title=%s&artist=%s', xuid, string.gsub(data.song_name, "%s+", "%%20"), string.gsub(data.artist_name, "%s+", "%%20")), function(s,r) end)
         end
-        
+
         data.stored_name = data.song_name
     elseif not ui.get(menu.options.cover_art_colour) then
-        data.colours.r, data.colours.g, data.colours.b, data.colours.a = ui.get(menu.options.background_colour)
+        r,g,b,a = ui.get(menu.options.background_colour)
+        client.log(r .. " " .. g .. " " .. b .. "nigger")
     end
+    data.colours.r:update(globals.frametime(), r, nil)
+    data.colours.g:update(globals.frametime(), g, nil)
+    data.colours.b:update(globals.frametime(), b, nil)
 end
 
 function draw_spotify_window()
     if authentication.status == "COMPLETED" and ui.get(menu.enable) then
+        local r, g, b = data.colours.r:get(), data.colours.g:get(), data.colours.b:get()
         window.cover_art_position:update(globals.frametime(), ui.get(menu.options.cover_art) and 50 or 0, nil)
         data.song_size = surface.get_text_size(fonts.title, data.song_name)
         data.artist_size = surface.get_text_size(fonts.artist, data.artist_name)
         window_x = window.x:get()
         window_y = window.y:get()
         window.w = data.song_size > data.artist_size and data.song_size + 40+window.cover_art_position:get() or data.artist_size + 40+window.cover_art_position:get()
-        surface.draw_filled_rect(window_x,window_y,window.w,window.h,data.colours.r,data.colours.g,data.colours.b,130)
+        surface.draw_filled_rect(window_x,window_y,window.w,window.h,r,g,b,130)
         surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+5, 255, 255, 255, 255, fonts.title, data.song_name)
         surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+35, 255, 255, 255, 255, fonts.artist, data.artist_name)
         surface.draw_filled_rect(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
@@ -318,7 +339,6 @@ end
 function draw_hud()
     if authentication.status == "COMPLETED" and ui.get(menu.options.hud) and ui.is_menu_open() and ui.get(menu.enable) then
         menu_position = {ui.menu_position()}
-        client.log("W: ".. hud.bar_width:get() .. ", L: " .. hud.bar_length:get() .. ", hW: " .. hud.w:get())
         menu_size = {ui.menu_size()}
         mouse_position = { ui.mouse_position() }
         hud_x = hud.x:update(globals.frametime(), menu_position[1], nil):get()
@@ -335,7 +355,7 @@ function draw_hud()
         surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+42, 255, 255, 255, 255, fonts.artist, data.artist_name)
         surface.draw_filled_gradient_rect(hud_x+390, hud_y, 30, hud_h, 26,26,26,0, 26,26,26,hud.hover_alpha:get(), true)
         surface.draw_filled_rect(hud_x+420,hud_y,hud_w-420,hud_h,26,26,26,hud.hover_alpha:get())
-        if intersect(hud_x-10,hud_y,hud_w,hud_h) then
+        if intersect(hud_x-10,hud_y,hud_w,hud_h) and not hud.extended.Left[0] then
             hud.hover_alpha:update(globals.frametime(), 255, nil)
             hud.hover_movement:update(globals.frametime(), 1, nil)
             renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,255, 12, 180, 0.5)
@@ -407,24 +427,64 @@ function draw_hud()
 
         if hud.extended.Left[0] then 
             hud.cover_art_position:update(globals.frametime(), 0, nil)
+            gl_perc = hud.extended.initpercentage:update(globals.frametime(), 1, nil):get()
+            gl_opac = gl_perc*255
 
             xtl_x = hud.extended.Left.x:update(globals.frametime(), menu_position[1]-240, nil):get()
             xtl_y = hud.extended.Left.y:update(globals.frametime(), menu_position[2], nil):get()
             xtl_w = hud.extended.Left.w:get()
             xtl_h = hud.extended.Left.h:update(globals.frametime(), menu_size[2]+85, nil):get()
 
-            surface.draw_filled_rect(xtl_x,xtl_y,xtl_w,40,26,26,26,255)
-            surface.draw_filled_rect(xtl_x,xtl_y+50,xtl_w,xtl_h-290,26,26,26,255)
-            surface.draw_filled_rect(xtl_x,xtl_y+menu_size[2]-145,xtl_w,230,26,26,26,255)
+            surface.draw_filled_rect(xtl_x,xtl_y,xtl_w,40,26,26,26,gl_opac)
+            --start navigation
+--create forloop for navigation
+            for i = 0, 4 do
+                if i == 4 then
+                    renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, 255, 255, 255, 255)
+                    renderer.line(xtl_x+46*i+31, xtl_y + 13, xtl_x+46*i+22, xtl_y + 25, 255, 255, 255, 255)
+                end
+                if intersect(xtl_x+46*i, xtl_y, 46, 40) then 
+                    surface.draw_filled_rect(xtl_x+46*i,xtl_y,46,40,50,50,50,gl_opac)
+                    hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), 4, nil)
+                    navHandler(i)
+
+                else
+                    hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), -0.3, nil)
+                end
+                surface.draw_filled_rect(xtl_x+46*i,xtl_y+41-hud.extended.Left.navigation.bar_height[i+1]:get(), 46, hud.extended.Left.navigation.bar_height[i+1]:get(),0,255,0,(gl_opac/4)*hud.extended.Left.navigation.bar_height[i+1]:get())
+                i = i + 1
+            end
+            --end navigation
+            surface.draw_filled_rect(xtl_x,xtl_y+50,xtl_w,xtl_h-290,26,26,26,gl_opac)
+            surface.draw_filled_rect(xtl_x,xtl_y+menu_size[2]-145,xtl_w,230,26,26,26,gl_opac)
             data.song_image:draw(xtl_x+8,xtl_y+menu_size[2]-137,214,214)
+            client.log(gl_opac)
+        else
+            hud.cover_art_position:update(globals.frametime(), 55, nil)
+            hud.extended.initpercentage:update(globals.frametime(), 0, nil)
         end
         if hud.extended.Left[0] and hud.extended.Right[0] then
             xtr_x = hud.extended.Right.x:update(globals.frametime(), menu_size[1]+10, nil):get()
             xtr_y = hud.extended.Right.y:update(globals.frametime(), menu_position[2], nil):get()
             xtr_w = hud.extended.Right.w:get()
-            xtr_h = hud.extended.Right.h:update(globals.frametime, menu_size[2]+85):get()
+            xtr_h = hud.extended.Right.h:update(globals.frametime(), menu_size[2]+85):get()
 
             surface.draw_filled_rect(xtr_x,xtr_y,xtr_w,xtr_h,26,26,26,255)
+        end
+    end
+end
+
+function navHandler(index)
+    if client.key_state(0x01) and not clicked_once then
+        clicked_once = true
+        
+        if index == 0 then
+        elseif index == 1 then
+        elseif index == 2 then
+        elseif index == 3 then
+        elseif index == 4 then
+            hud.extended.Left[0] = false
+            
         end
     end
 end
