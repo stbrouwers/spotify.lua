@@ -51,7 +51,7 @@ function api.init(rkey)
             authentication.refresh_token = rkey
             authentication.access_token = jsondata.access_token
             http.get(string.format("https://api.spotify.com/v1/me?access_token=%s", authentication.access_token), function(s,r)
-                authentication.status = "GATHER_PROFILE
+                authentication.status = "GATHER_PROFILE"
                 if r.body then
                     jsondata = json.parse(r.body)
                     data.user = jsondata.display_name
