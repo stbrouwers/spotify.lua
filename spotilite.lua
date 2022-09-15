@@ -1,4 +1,4 @@
---[[
+    --[[
     @@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@
     @@@@@@@@@@@@@@@@@@@///////////////////////@@@@@@@@@@@@@@@@@@
     @@@@@@@@@@@@@@/////////////////////////////////@@@@@@@@@@@@@
@@ -55,7 +55,6 @@ function dynamic.new(f, z, r, xi)
 end
 
 function dynamic:update(dt, x, dx)
-   if not x then return end
    if dx == nil then
       dx = ( x - self.px ) / dt
       self.px = x
@@ -91,7 +90,6 @@ local xuid = persona.GetXuid()
 local fonts = {
     title = surface.create_font("Corbel", 30, 700, 0x010),
     artist = surface.create_font("Corbel", 16, 200, 0x010),
-    up_next = surface.create_font("Corbel", 20, 700, 0x010),
 }
 
 local function CP()
@@ -130,23 +128,17 @@ local data = {
         g =  dynamic.new(2, 0.8, 0.5, 13),
         b =  dynamic.new(2, 0.8, 0.5, 13),
         a = 130
-    },
-    next = {
-        song_name,
-        artist_name,
-        song_image,
     }
 }
 
 local window = {
     x = dynamic.new(2, 0.8, 0.5, database.read("spotify_x") or 10),
     y = dynamic.new(2, 0.8, 0.5, database.read("spotify_y") or 10),
-    w = dynamic.new(2, 1, 1, 200),
+    w = 200,
     h = 60,
     offset = true,
     moving = false,
     cover_art_position = dynamic.new(4, 1, 1, 0),
-    up_next = dynamic.new(2, 1, 1, 0),
 }
 
 local hud = {
@@ -212,11 +204,15 @@ end
 function gather_song_information()
     http.get(string.format("https://api.spotify.com/v1/me/player?access_token=%s", authentication.access_token), function(s,r)
         if r.status == 200 then
+            str = ""
             jsondata = json.parse(r.body)
             data.device_id = jsondata.device.id
             data.is_playing = jsondata.is_playing
             data.song_name = jsondata.item.name
-            data.artist_name = jsondata.item.artists[1].name
+            for i = 1, #jsondata.item.artists do
+                str = i == #jsondata.item.artists and str .. jsondata.item.artists[i].name or str .. jsondata.item.artists[i].name ..  ", "
+            end
+            data.artist_name = str
             data.album_name = jsondata.item.album.name
             data.image_url = jsondata.item.album.images[1].url
             data.duration = jsondata.item.duration_ms
@@ -225,18 +221,6 @@ function gather_song_information()
             http.get(jsondata.item.album.images[1].url, function(success, response)
                 if r.status == 200 then
                     data.song_image = images.load_jpg(response.body)
-                end
-            end)
-            http.get(string.format("https://api.spotify.com/v1/me/player/queue?access_token=%s", authentication.access_token), function(s,r)
-                if r.body then
-                    jsondataq = json.parse(r.body)
-                    data.next.song_name = jsondataq.queue[1].name
-                    data.next.artist_name = jsondataq.queue[1].artists[1].name
-                    http.get(jsondataq.queue[1].album.images[1].url, function(success, response)
-                        if r.status == 200 then
-                            data.next.song_image = images.load_jpg(response.body)
-                        end
-                    end)
                 end
             end)
             authentication.status = "COMPLETED"
@@ -295,7 +279,7 @@ function update_data()
     if authentication.status == "COMPLETED" or authentication.status == "SONG_FAILURE" then
         if data.delay < client.unix_time() then
             status, retval = pcall(gather_song_information) -- i love spotifys images and image library!
-            data.delay = client.unix_time() + 1
+            data.delay = client.unix_time() + 2
         end
     end
 end
@@ -304,14 +288,13 @@ function get_window_colour()
     if ui.get(menu.options.cover_art_colour) and data.song_name ~= data.stored_name then 
         http.post('https://spotify.stbrouwers.cc/image', { headers = { ['Content-Type'] = 'application/json' }, body = json.stringify({url = data.image_url}) }, function(s, res)
             body = json.parse(res.body)
-            if not body.color then return end
             r, g ,b = body.color.r, body.color.g, body.color.b
         end)
 
         data.stored_name = data.song_name
     elseif not ui.get(menu.options.cover_art_colour) then
         r,g,b,a = ui.get(menu.options.background_colour)
-        data.stored_name = ""
+        client.log(r .. " " .. g .. " " .. b .. "nigger")
     end
     data.colours.r:update(globals.frametime(), r, nil)
     data.colours.g:update(globals.frametime(), g, nil)
@@ -326,17 +309,14 @@ function draw_spotify_window()
         data.artist_size = surface.get_text_size(fonts.artist, data.artist_name)
         window_x = window.x:get()
         window_y = window.y:get()
-        temp_width = data.song_size > data.artist_size and data.song_size + 40+window.cover_art_position:get() or data.artist_size + 40+window.cover_art_position:get()
-        window_w = window.w:update(globals.frametime(), temp_width, nil):get()
-        surface.draw_filled_rect(window_x,window_y,window_w,window.h,r,g,b,130)
+        window.w = data.song_size > data.artist_size and data.song_size + 40+window.cover_art_position:get() or data.artist_size + 40+window.cover_art_position:get()
+        surface.draw_filled_rect(window_x,window_y,window.w,window.h,r,g,b,130)
         surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+5, 255, 255, 255, 255, fonts.title, data.song_name)
         surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+35, 255, 255, 255, 255, fonts.artist, data.artist_name)
         surface.draw_filled_rect(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
         surface.draw_text(window_x+window.cover_art_position:get()/2-1, window_y+15, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
-        if data.song_image then
-            data.song_image:draw(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50)
-        end
-        if intersect(window.x:get(), window.y:get(), window_w, window.h) and client.key_state(0x01) then
+        data.song_image:draw(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50)
+        if intersect(window.x:get(), window.y:get(), window.w, window.h) and client.key_state(0x01) then
             window.moving = true
         elseif not client.key_state(0x01) then
             window.moving = false
@@ -353,145 +333,144 @@ function draw_spotify_window()
         else
             window.offset = true
         end
-        next_width = surface.get_text_size(fonts.up_next, string.format("Next: %s by %s", data.next.song_name, data.next.artist_name))+8
-        surface.draw_filled_rect(window_x,window_y+window.h,next_width,window.up_next:get(),r,g,b,130)
-        surface.draw_filled_rect(window_x,window_y+window.h,next_width,window.up_next:get(),13,13,13,40)
-        if (data.duration - data.timestamp) < 12000 then
-            window.up_next:update(globals.frametime(), 24, nil)
-            surface.draw_text(window_x+4, window_y+window.h+2, 255, 255, 255, 255, fonts.up_next, string.format("Next: %s by %s", data.next.song_name, data.next.artist_name))
-        else
-            window.up_next:update(globals.frametime(), 0, nil)
-        end
     end
 end
 
 function draw_hud()
-    menu_position = {ui.menu_position()}
-    menu_size = {ui.menu_size()}
-    mouse_position = { ui.mouse_position() }
-    hud_x = hud.x:update(globals.frametime(), menu_position[1], nil):get()
-    hud_y = hud.y:update(globals.frametime(), menu_position[2] + menu_size[2] + 10, nil):get()
-    hud_w = hud.w:update(globals.frametime(), menu_size[1], nil):get()
-    hud_h = hud.h:get()
-    surface.draw_filled_rect(hud_x,hud_y,hud_w,hud_h,26,26,26,255)
-    surface.draw_filled_rect(hud_x+10,hud_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
-    surface.draw_text(hud_x+30, hud_y+20, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
-    if data.song_image then
-        data.song_image:draw(hud_x+10,hud_y+10,hud.cover_art_position:get(),55)
-    end
-    surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+10, 255, 255, 255, 255, fonts.title, data.song_name)
-    surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+42, 255, 255, 255, 255, fonts.artist, data.artist_name)
-    surface.draw_filled_gradient_rect(hud_x+390, hud_y, 30, hud_h, 26,26,26,0, 26,26,26,hud.hover_alpha:get(), true)
-    surface.draw_filled_rect(hud_x+420,hud_y,hud_w-420,hud_h,26,26,26,hud.hover_alpha:get())
-    if intersect(hud_x-10,hud_y,hud_w,hud_h) and not hud.extended.Left[0] then
-        hud.hover_alpha:update(globals.frametime(), 255, nil)
-        hud.hover_movement:update(globals.frametime(), 1, nil)
-        renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,255, 12, 180, 0.5)
-        renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
-        renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
-        if intersect(hud_x-12, hud_y+12, 13, 28) then
-            renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 255*hud.hover_movement:get())
-            renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 255*hud.hover_movement:get())
+    if authentication.status == "COMPLETED" and ui.get(menu.options.hud) and ui.is_menu_open() and ui.get(menu.enable) then
+        menu_position = {ui.menu_position()}
+        menu_size = {ui.menu_size()}
+        mouse_position = { ui.mouse_position() }
+        hud_x = hud.x:update(globals.frametime(), menu_position[1], nil):get()
+        hud_y = hud.y:update(globals.frametime(), menu_position[2] + menu_size[2] + 10, nil):get()
+        hud_w = hud.w:update(globals.frametime(), menu_size[1], nil):get()
+        hud_h = hud.h:get()
+        surface.draw_filled_rect(hud_x,hud_y,hud_w,hud_h,26,26,26,255)
+        surface.draw_filled_rect(hud_x+10,hud_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
+        surface.draw_text(hud_x+30, hud_y+20, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
+        if data.song_image then
+            data.song_image:draw(hud_x+10,hud_y+10,hud.cover_art_position:get(),55)
+        end
+        surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+10, 255, 255, 255, 255, fonts.title, data.song_name)
+        surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+42, 255, 255, 255, 255, fonts.artist, data.artist_name)
+        surface.draw_filled_gradient_rect(hud_x+390, hud_y, 30, hud_h, 26,26,26,0, 26,26,26,hud.hover_alpha:get(), true)
+        surface.draw_filled_rect(hud_x+420,hud_y,hud_w-420,hud_h,26,26,26,hud.hover_alpha:get())
+        if intersect(hud_x-10,hud_y,hud_w,hud_h) and not hud.extended.Left[0] then
+            hud.hover_alpha:update(globals.frametime(), 255, nil)
+            hud.hover_movement:update(globals.frametime(), 1, nil)
+            renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,255, 12, 180, 0.5)
+            renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
+            renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
+
+            if intersect(hud_x-12, hud_y+12, 13, 28) then
+                renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 255*hud.hover_movement:get())
+                renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 255*hud.hover_movement:get())
+                if client.key_state(0x01) and not clicked_once then
+                    hud.extended.Left[0] = true
+                    clicked_once = true
+                end
+            end
+
+        else
+            hud.hover_alpha:update(globals.frametime(), 0, nil)
+            hud.hover_movement:update(globals.frametime(), 0, nil)
+            renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,hud.hover_movement:get()*255, 12, 180, 0.5)
+        end
+        if intersect(hud_x,hud_y+65,hud_w,10) then
+            hud.bar_width:update(globals.frametime(), 5, nil)
+            hud.bar_length:update(globals.frametime(), (mouse_position[1]-hud_x)/hud_w, nil)
+            surface.draw_filled_rect(hud_x,hud_y+75-hud.bar_width:get(),(hud.bar_length:get()*hud_w),hud.bar_width:get(),0,255,0,255)
+            renderer.circle(mouse_position[1], hud_y+75-hud.bar_width:get()+2,255,255,255,255, hud.bar_width:get()*1.3, 0, 1)
+        else
+            hud.bar_width:update(globals.frametime(), 2, nil)
+            hud.bar_length:update(globals.frametime(), (data.timestamp / data.duration), nil)
+            surface.draw_filled_rect(hud_x,hud_y+75-hud.bar_width:get(),(hud.bar_length:get()*hud_w),hud.bar_width:get(),0,255,0,255)
+        end
+        if data.is_playing then
+            renderer.text(hud_x+hud_w/2, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.play_alpha:get(),"c+",0,"⏸")
+        else
+            renderer.text(hud_x+hud_w/2, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.play_alpha:get(),"c+",0,"▶")
+        end
+        renderer.text(hud_x+hud_w/2-40, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.back_alpha:get(),"c+",0,"⏮")
+        renderer.text(hud_x+hud_w/2+40, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.next_alpha:get(),"c+",0,"⏭")
+        if intersect(hud_x+hud_w/2-5, hud_y+hud_h/2-5, 15, 20) then
+            hud.play_alpha:update(globals.frametime(), 127.5, nil)
+            hud.back_alpha:update(globals.frametime(), 0, nil)
+            hud.next_alpha:update(globals.frametime(), 0, nil)
             if client.key_state(0x01) and not clicked_once then
-                hud.extended.Left[0] = true
+                play_pause()
                 clicked_once = true
             end
-        end
-    else
-        hud.hover_alpha:update(globals.frametime(), 0, nil)
-        hud.hover_movement:update(globals.frametime(), 0, nil)
-        renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,hud.hover_movement:get()*255, 12, 180, 0.5)
-    end
-    if intersect(hud_x,hud_y+65,hud_w,10) then
-        hud.bar_width:update(globals.frametime(), 5, nil)
-        hud.bar_length:update(globals.frametime(), (mouse_position[1]-hud_x)/hud_w, nil)
-        surface.draw_filled_rect(hud_x,hud_y+75-hud.bar_width:get(),(hud.bar_length:get()*hud_w),hud.bar_width:get(),0,255,0,255)
-        renderer.circle(mouse_position[1], hud_y+75-hud.bar_width:get()+2,255,255,255,255, hud.bar_width:get()*1.3, 0, 1)
-    else
-        hud.bar_width:update(globals.frametime(), 2, nil)
-        hud.bar_length:update(globals.frametime(), (data.timestamp / data.duration), nil)
-        surface.draw_filled_rect(hud_x,hud_y+75-hud.bar_width:get(),(hud.bar_length:get()*hud_w),hud.bar_width:get(),0,255,0,255)
-    end
-    if data.is_playing then
-        renderer.text(hud_x+hud_w/2, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.play_alpha:get(),"c+",0,"⏸")
-    else
-        renderer.text(hud_x+hud_w/2, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.play_alpha:get(),"c+",0,"▶")
-    end
-    renderer.text(hud_x+hud_w/2-40, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.back_alpha:get(),"c+",0,"⏮")
-    renderer.text(hud_x+hud_w/2+40, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.next_alpha:get(),"c+",0,"⏭")
-    if intersect(hud_x+hud_w/2-5, hud_y+hud_h/2-5, 15, 20) then
-        hud.play_alpha:update(globals.frametime(), 127.5, nil)
-        hud.back_alpha:update(globals.frametime(), 0, nil)
-        hud.next_alpha:update(globals.frametime(), 0, nil)
-        if client.key_state(0x01) and not clicked_once then
-            play_pause()
-            clicked_once = true
-        end
-    elseif intersect(hud_x+hud_w/2-55, hud_y+hud_h/2-5, 30, 20) then
-        hud.play_alpha:update(globals.frametime(), 0, nil)
-        hud.back_alpha:update(globals.frametime(), 127.5, nil)
-        hud.next_alpha:update(globals.frametime(), 0, nil)
-        if client.key_state(0x01) and not clicked_once then
-            skip("previous")
-            clicked_once = true
-        end
-    elseif intersect(hud_x+hud_w/2+25, hud_y+hud_h/2-5, 30, 20) then
-        hud.play_alpha:update(globals.frametime(), 0, nil)
-        hud.back_alpha:update(globals.frametime(), 0, nil)
-        hud.next_alpha:update(globals.frametime(), 127.5, nil)
-        if client.key_state(0x01) and not clicked_once then
-            skip("next")
-            clicked_once = true
-        end
-    elseif not client.key_state(0x01) and clicked_once then
-        clicked_once = false
-    else
-        hud.play_alpha:update(globals.frametime(), 0, nil)
-        hud.back_alpha:update(globals.frametime(), 0, nil)
-        hud.next_alpha:update(globals.frametime(), 0, nil)
-    end
-    xtl_x = hud.extended.Left.x:update(globals.frametime(), menu_position[1]-240, nil):get()
-    xtl_y = hud.extended.Left.y:update(globals.frametime(), menu_position[2], nil):get()
-    xtl_w = hud.extended.Left.w:get()
-    xtl_h = hud.extended.Left.h:update(globals.frametime(), menu_size[2]+85, nil):get()
-    if hud.extended.Left[0] then 
-        hud.cover_art_position:update(globals.frametime(), 0, nil)
-        gl_perc = hud.extended.initpercentage:update(globals.frametime(), 1, nil):get()
-        gl_opac = gl_perc*255
-        surface.draw_filled_rect(xtl_x,xtl_y,xtl_w,40,26,26,26,gl_opac)
-        --start navigation
-        --create forloop for navigation
-        for i = 0, 4 do
-            if i == 3 then
+        elseif intersect(hud_x+hud_w/2-55, hud_y+hud_h/2-5, 30, 20) then
+            hud.play_alpha:update(globals.frametime(), 0, nil)
+            hud.back_alpha:update(globals.frametime(), 127.5, nil)
+            hud.next_alpha:update(globals.frametime(), 0, nil)
+            if client.key_state(0x01) and not clicked_once then
+                skip("previous")
+                clicked_once = true
             end
-            if i == 4 then
-                renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, 255, 255, 255, 255)
-                renderer.line(xtl_x+46*i+31, xtl_y + 13, xtl_x+46*i+22, xtl_y + 25, 255, 255, 255, 255)
+        elseif intersect(hud_x+hud_w/2+25, hud_y+hud_h/2-5, 30, 20) then
+            hud.play_alpha:update(globals.frametime(), 0, nil)
+            hud.back_alpha:update(globals.frametime(), 0, nil)
+            hud.next_alpha:update(globals.frametime(), 127.5, nil)
+            if client.key_state(0x01) and not clicked_once then
+                skip("next")
+                clicked_once = true
             end
-            if intersect(xtl_x+46*i, xtl_y, 46, 40) then 
-                surface.draw_filled_rect(xtl_x+46*i,xtl_y,46,40,50,50,50,gl_opac)
-                hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), 4, nil)
-                navHandler(i)
-            else
-                hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), -0.3, nil)
-            end
-            surface.draw_filled_rect(xtl_x+46*i,xtl_y+41-hud.extended.Left.navigation.bar_height[i+1]:get(), 46, hud.extended.Left.navigation.bar_height[i+1]:get(),0,255,0,(gl_opac/4)*hud.extended.Left.navigation.bar_height[i+1]:get())
-            --i = i + 1
+        elseif not client.key_state(0x01) and clicked_once then
+            clicked_once = false
+        else
+            hud.play_alpha:update(globals.frametime(), 0, nil)
+            hud.back_alpha:update(globals.frametime(), 0, nil)
+            hud.next_alpha:update(globals.frametime(), 0, nil)
         end
-        --end navigation
-        surface.draw_filled_rect(xtl_x,xtl_y+50,xtl_w,xtl_h-290,26,26,26,gl_opac)
-        surface.draw_filled_rect(xtl_x,xtl_y+menu_size[2]-145,xtl_w,230,26,26,26,gl_opac)
-        data.song_image:draw(xtl_x+8,xtl_y+menu_size[2]-137,214,214)
-    else
-        hud.cover_art_position:update(globals.frametime(), 55, nil)
-        hud.extended.initpercentage:update(globals.frametime(), 0, nil)
-    end
-    if hud.extended.Left[0] and hud.extended.Right[0] then
-        xtr_x = hud.extended.Right.x:update(globals.frametime(), menu_size[1]+10, nil):get()
-        xtr_y = hud.extended.Right.y:update(globals.frametime(), menu_position[2], nil):get()
-        xtr_w = hud.extended.Right.w:get()
-        xtr_h = hud.extended.Right.h:update(globals.frametime(), menu_size[2]+85):get()
-        surface.draw_filled_rect(xtr_x,xtr_y,xtr_w,xtr_h,26,26,26,255)
+
+        if hud.extended.Left[0] then 
+            hud.cover_art_position:update(globals.frametime(), 0, nil)
+            gl_perc = hud.extended.initpercentage:update(globals.frametime(), 1, nil):get()
+            gl_opac = gl_perc*255
+
+            xtl_x = hud.extended.Left.x:update(globals.frametime(), menu_position[1]-240, nil):get()
+            xtl_y = hud.extended.Left.y:update(globals.frametime(), menu_position[2], nil):get()
+            xtl_w = hud.extended.Left.w:get()
+            xtl_h = hud.extended.Left.h:update(globals.frametime(), menu_size[2]+85, nil):get()
+
+            surface.draw_filled_rect(xtl_x,xtl_y,xtl_w,40,26,26,26,gl_opac)
+            --start navigation
+            --create forloop for navigation
+            for i = 0, 4 do
+                if i == 4 then
+                    --renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, 255, 255, 255, 255)
+                    --renderer.line(xtl_x+46*i+31, xtl_y + 13, xtl_x+46*i+22, xtl_y + 25, 255, 255, 255, 255)
+                end
+                if intersect(xtl_x+46*i, xtl_y, 46, 40) then 
+                    surface.draw_filled_rect(xtl_x+46*i,xtl_y,46,40,50,50,50,gl_opac)
+                    hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), 4, nil)
+                    navHandler(i)
+
+                else
+                    hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), -0.3, nil)
+                end
+                surface.draw_filled_rect(xtl_x+46*i,xtl_y+41-hud.extended.Left.navigation.bar_height[i+1]:get(), 46, hud.extended.Left.navigation.bar_height[i+1]:get(),0,255,0,(gl_opac/4)*hud.extended.Left.navigation.bar_height[i+1]:get())
+                i = i + 1
+            end
+            --end navigation
+            surface.draw_filled_rect(xtl_x,xtl_y+50,xtl_w,xtl_h-290,26,26,26,gl_opac)
+            surface.draw_filled_rect(xtl_x,xtl_y+menu_size[2]-145,xtl_w,230,26,26,26,gl_opac)
+            data.song_image:draw(xtl_x+8,xtl_y+menu_size[2]-137,214,214)
+            client.log(gl_opac)
+        else
+            hud.cover_art_position:update(globals.frametime(), 55, nil)
+            hud.extended.initpercentage:update(globals.frametime(), 0, nil)
+        end
+        if hud.extended.Left[0] and hud.extended.Right[0] then
+            xtr_x = hud.extended.Right.x:update(globals.frametime(), menu_size[1]+10, nil):get()
+            xtr_y = hud.extended.Right.y:update(globals.frametime(), menu_position[2], nil):get()
+            xtr_w = hud.extended.Right.w:get()
+            xtr_h = hud.extended.Right.h:update(globals.frametime(), menu_size[2]+85):get()
+
+            surface.draw_filled_rect(xtr_x,xtr_y,xtr_w,xtr_h,26,26,26,255)
+        end
     end
 end
 
@@ -567,14 +546,12 @@ end
 
 client.set_event_callback("paint_ui", function()
     --debug()
-    draw_spotify_window()
-    --_, __ = pcall(draw_spotify_window)
+    --draw_spotify_window()
+    _, __ = pcall(draw_spotify_window)
     update_data()
     handle_menu()
     get_window_colour()
-    if authentication.status == "COMPLETED" and ui.get(menu.options.hud) and ui.is_menu_open() and ui.get(menu.enable) then
-        draw_hud()
-    end
+    draw_hud()
     --_, __ = pcall(draw_hud)
     seek()
 end)
