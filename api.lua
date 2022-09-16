@@ -105,6 +105,14 @@ function api.playpause()
     end
 end
 
+function api.play_song(id) 
+    local x = json.stringify({context_uri = "spotify:track:".. id, position_ms = 0})
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
+    http.put("https://api.spotify.com/v1/me/player/play?&device_id=" .. data.device_id, http_options, function(s, r) 
+    
+    end)
+end
+
 function api.play_song_playlist(pid, sid)
     local x = json.stringify({context_uri = "spotify:playlist:" .. id, offset = {position = sid-1}, position_ms = 0})
     local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}, body = x}
