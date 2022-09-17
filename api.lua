@@ -3,10 +3,10 @@ local api = {}
 local js = panorama.open()
 local http = require("gamesense/http")
 
-local authentication = {
+local auth = {
     status = "UNINITIALISED",
-    authentication.refresh_token,
-    authentication.access_token,
+    refresh_token,
+    access_token,
 }
 
 local data = {
@@ -44,21 +44,21 @@ end
 function api.init(rkey)
     http.get(string.format("https://spotify.stbrouwers.cc/refresh_token?refresh_token=%s", rkey), function(s, r)
         if r.status ~= 200 then
-            authentication.status = "INVALID_TOKEN"
+            auth.status = "INVALID_TOKEN"
         else
-            authentication.status = "TOKEN_OBTAINED"
+            auth.status = "TOKEN_OBTAINED"
             local jsondata = json.parse(r.body)
-            authentication.refresh_token = rkey
-            authentication.access_token = jsondata.access_token
-            http.get(string.format("https://api.spotify.com/v1/me?access_token=%s", authentication.access_token), function(s,r)
-                authentication.status = "GATHER_PROFILE"
+            auth.refresh_token = rkey
+            auth.access_token = jsondata.access_token
+            http.get(string.format("https://api.spotify.com/v1/me?access_token=%s", auth.access_token), function(s,r)
+                auth.status = "GATHER_PROFILE"
                 if r.body then
                     jsondata = json.parse(r.body)
                     data.user = jsondata.display_name
                     if not data.user then
                         api.init()
                     end
-                    authentication.status = "PROFILE_SAVED"
+                    auth.status = "PROFILE_SAVED"
                 end
             end)
         end
@@ -66,7 +66,7 @@ function api.init(rkey)
 end
 
 function api.update()
-    http.get(string.format("https://api.spotify.com/v1/me/player?access_token=%s", authentication.access_token), function(s,r)
+    http.get(string.format("https://api.spotify.com/v1/me/player?access_token=%s", auth.access_token), function(s,r)
         if r.status == 200 then
             jsondata = json.parse(r.body)
             data.device_id = jsondata.device.id
@@ -79,12 +79,12 @@ function api.update()
             data.timestamp = jsondata.progress_ms
             http.get(jsondata.item.album.images[1].url, function(success, response)
                 if r.status == 200 then
-                    data.song_image = images.load_jpg(response.body)
+                    data.song_image = response.body
                 end
             end)
-            authentication.status = "COMPLETED"
+            auth.status = "COMPLETED"
         else
-            authentication.status = "SONG_FAILURE"
+            auth.status = "SONG_FAILURE"
         end
     end)
 
@@ -96,7 +96,7 @@ function api.get_data()
 end
 
 function api.playpause()
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
 
     if data.is_playing then
         http.put("https://api.spotify.com/v1/me/player/pause?&device_id=" .. data.device_id, http_options, function(s, r) end)
@@ -105,56 +105,55 @@ function api.playpause()
     end
 end
 
-function api.play_song(id) 
-    local x = json.stringify({context_uri = "spotify:track:".. id, position_ms = 0})
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
-    http.put("https://api.spotify.com/v1/me/player/play?&device_id=" .. data.device_id, http_options, function(s, r) 
-    
+function api.play_song(id)
+    local x = json.stringify({context_uri = "spotify:track:" .. id, position_ms = 0})
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}, body = x}
+    http.put("https://api.spotify.com/v1/me/player/play", http_options, function(s, r) 
+        print(r.body)
     end)
 end
 
 function api.play_song_playlist(pid, sid)
     local x = json.stringify({context_uri = "spotify:playlist:" .. id, offset = {position = sid-1}, position_ms = 0})
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}, body = x}
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}, body = x}
 
     http.put("https://api.spotify.com/v1/me/player/play", http_options, function(s, r)
 
     end)
 end
 
-function api.queue_song(id)
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
+function api.queue_song(id) -- not working
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
     http.post("https://api.spotify.com/v1/me/player/queue?uri=" .. id .. "&device_id=" .. data.device_id, http_options, function(s, r)
         
     end)
 end
 
 function api.next()
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
     http.post("https://api.spotify.com/v1/me/player/next?device_id=" .. data.device_id, http_options, function(s, r) end) 
 end
 
 function api.previous()
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
     http.post("https://api.spotify.com/v1/me/player/previous?device_id=" .. data.device_id, http_options, function(s, r) end) 
 end
 
 function api.volume(a)
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
-    http.put("https://api.spotify.com/v1/me/player/volume?volume_percent=" .. round(a) .. "&device_id=" .. data.device_id, http_options, function(s, r)
-        UpdateCount = UpdateCount + 1
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
+    http.put("https://api.spotify.com/v1/me/player/volume?volume_percent=" .. math.floor(a) .. "&device_id=" .. data.device_id, http_options, function(s, r)
     end)
 end
 
 --bool a
-function api.shuffle(a)
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
+function api.shuffle(a) -- not working
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
     http.put("https://api.spotify.com/v1/me/player/shuffle?device_id=" .. data.device_id .. "&state=" .. tostring(a), http_options, function(s, r)
 
     end)
 end
 
-function api.repeat(a)
+--[[function api.repeat(a)
     if a == 0 then
         RepeatState = "off"
     elseif a == 1 then
@@ -163,19 +162,19 @@ function api.repeat(a)
         RepeatState = "track"
     end
 
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
     http.put("https://api.spotify.com/v1/me/player/repeat?device_id=" .. data.device_id .. "&state=" .. RepeatState, http_options, function(s, r)
 
     end)
-end
+end]]
 
 function api.seek(a)
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
     http.put("https://api.spotify.com/v1/me/player/seek?position_ms=" .. math.floor(a) .. "&device_id=" .. data.device_id, http_options, function(s, r) end)
 end
 
 function api.get_user_playlists(l, o)
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
     http.get(string.format("https://api.spotify.com/v1/me/playlists?limit=".. l .. "&offset=".. o, http_options), function(s,r)
         if r.status == 200 then
             jsondata = json.parse(r.body)
@@ -192,7 +191,7 @@ function api.get_user_playlists(l, o)
 end
 
 function api.get_playlist_tracks(id, l, o)
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token, ["Content-length"] = 0}}
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token, ["Content-length"] = 0}}
     http.get(string.format("https://api.spotify.com/v1/playlists/".. id .."/tracks?limit=".. l .."&offset=" .. o, http_options), function(s,r)
         if r.status == 200 then
             jsondata = json.parse(r.body)
@@ -209,13 +208,13 @@ function api.get_playlist_tracks(id, l, o)
 end
 
 function api.getstatus()
-    return authentication.status
+    return auth.status
 end
 
 function api.reset()
-    authentication.status = "UNINITIALISED"
-    authentication.access_token = ""
-    authentication.refresh_token = ""
+    auth.status = "UNINITIALISED"
+    auth.access_token = ""
+    auth.refresh_token = ""
 end
 
 return api
