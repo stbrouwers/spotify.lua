@@ -53,13 +53,16 @@ function dynamic.new(f, z, r, xi)
       dy = 0
    }, dynamic)
 end
-
+--client.log('optimized: ' .. x .. " self.y: " .. self.y)
+--else client.log('not optimized: ' .. x .. " self.y: " .. self.y)
 function dynamic:update(dt, x, dx)
+   if self.y == x then return self end
    if dx == nil then
       dx = ( x - self.px ) / dt
       self.px = x
    end
 
+   if self.y == self.px then client.log("optimized:" .. x ..  "self.px: " .. self.px) return self end
    self.y  = self.y + dt * self.dy
    self.dy = self.dy + dt * ( x + self.c * dx - self.y - self.a * self.dy ) / self.b
    return self
@@ -107,10 +110,6 @@ local authentication = {
     refresh_token = database.read("spotify_refresh_token") or "",
 }
 
-local vars = {
-    box_size_mod = 0
-} 
-
 local data = {
     user,
     device_id,
@@ -156,7 +155,7 @@ local hud = {
     song_name = "", -- so it adapts to menu size bratan kuku bra
     cover_art_position = dynamic.new(4, 1, 1, 55),
     extended = {
-        initpercentage = dynamic.new(8, 2, 1, 0),
+        initpercentage = dynamic.new(2, 1, 1, 0),
         Left = {
             false,
             x = dynamic.new(8, 2, 1, select(1, ui.menu_position()-240)),
@@ -294,7 +293,6 @@ function get_window_colour()
         data.stored_name = data.song_name
     elseif not ui.get(menu.options.cover_art_colour) then
         r,g,b,a = ui.get(menu.options.background_colour)
-        client.log(r .. " " .. g .. " " .. b .. "nigger")
     end
     data.colours.r:update(globals.frametime(), r, nil)
     data.colours.g:update(globals.frametime(), g, nil)
@@ -316,7 +314,7 @@ function draw_spotify_window()
         surface.draw_filled_rect(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
         surface.draw_text(window_x+window.cover_art_position:get()/2-1, window_y+15, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
         data.song_image:draw(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50)
-        if intersect(window.x:get(), window.y:get(), window.w, window.h) and client.key_state(0x01) then
+        if intersect(window_x, window_y, window.w, window.h) and client.key_state(0x01) then
             window.moving = true
         elseif not client.key_state(0x01) then
             window.moving = false
@@ -324,8 +322,8 @@ function draw_spotify_window()
         if window.moving then
             local mousepos = { ui.mouse_position() }
             if window.offset then
-                mouseposx = mousepos[1] - window.x:get()
-                mouseposy = mousepos[2] - window.y:get()
+                mouseposx = mousepos[1] - window_x
+                mouseposy = mousepos[2] - window_y
                 window.offset = false
             end
             window.x:update(globals.frametime(), mousepos[1] - mouseposx, nil)
@@ -355,26 +353,30 @@ function draw_hud()
         surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+42, 255, 255, 255, 255, fonts.artist, data.artist_name)
         surface.draw_filled_gradient_rect(hud_x+390, hud_y, 30, hud_h, 26,26,26,0, 26,26,26,hud.hover_alpha:get(), true)
         surface.draw_filled_rect(hud_x+420,hud_y,hud_w-420,hud_h,26,26,26,hud.hover_alpha:get())
-        if intersect(hud_x-10,hud_y,hud_w,hud_h) and not hud.extended.Left[0] then
+        if intersect(hud_x-10,hud_y,hud_w,hud_h) then
             hud.hover_alpha:update(globals.frametime(), 255, nil)
             hud.hover_movement:update(globals.frametime(), 1, nil)
-            renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,255, 12, 180, 0.5)
-            renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
-            renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
 
-            if intersect(hud_x-12, hud_y+12, 13, 28) then
-                renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 255*hud.hover_movement:get())
-                renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 255*hud.hover_movement:get())
-                if client.key_state(0x01) and not clicked_once then
-                    hud.extended.Left[0] = true
-                    clicked_once = true
+            if not hud.extended.Left[0] then
+                renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,255, 12, 180, 0.5)
+                renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
+                renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
+                if intersect(hud_x-12, hud_y+12, 13, 28) then
+                    renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 255*hud.hover_movement:get())
+                    renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 255*hud.hover_movement:get())
+                    if client.key_state(0x01) and not clicked_once then
+                        hud.extended.Left[0] = true
+                        clicked_once = true
+                    end
                 end
             end
 
         else
             hud.hover_alpha:update(globals.frametime(), 0, nil)
             hud.hover_movement:update(globals.frametime(), 0, nil)
-            renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,hud.hover_movement:get()*255, 12, 180, 0.5)
+            if not hud.extended.Left[0] then
+                renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,hud.hover_movement:get()*255, 12, 180, 0.5)
+            end
         end
         if intersect(hud_x,hud_y+65,hud_w,10) then
             hud.bar_width:update(globals.frametime(), 5, nil)
@@ -425,23 +427,26 @@ function draw_hud()
             hud.next_alpha:update(globals.frametime(), 0, nil)
         end
 
+        xtl_x = hud.extended.Left.x:update(globals.frametime(), menu_position[1]-240, nil):get()
+        xtl_y = hud.extended.Left.y:update(globals.frametime(), menu_position[2], nil):get()
+        xtl_w = hud.extended.Left.w:get()
+        xtl_h = hud.extended.Left.h:update(globals.frametime(), menu_size[2]+85, nil):get()
+
         if hud.extended.Left[0] then 
             hud.cover_art_position:update(globals.frametime(), 0, nil)
-            gl_perc = hud.extended.initpercentage:update(globals.frametime(), 1, nil):get()
-            gl_opac = gl_perc*255
+            gl_perc = math.max(hud.extended.initpercentage:update(globals.frametime(), 1, nil):get(), 0)
+            gl_unfuckedperc = math.ceil(gl_perc*100)/100
 
-            xtl_x = hud.extended.Left.x:update(globals.frametime(), menu_position[1]-240, nil):get()
-            xtl_y = hud.extended.Left.y:update(globals.frametime(), menu_position[2], nil):get()
-            xtl_w = hud.extended.Left.w:get()
-            xtl_h = hud.extended.Left.h:update(globals.frametime(), menu_size[2]+85, nil):get()
+            gl_opac = math.ceil(gl_perc*255)
+            client.log(gl_opac .. " " .. tostring(hud.extended.Left[0]) .. "percent: " .. gl_perc)
 
-            surface.draw_filled_rect(xtl_x,xtl_y,xtl_w,40,26,26,26,gl_opac)
+            surface.draw_filled_rect(xtl_x,xtl_y,xtl_w,40,26,26,26, gl_opac)
             --start navigation
             --create forloop for navigation
             for i = 0, 4 do
                 if i == 4 then
-                    --renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, 255, 255, 255, 255)
-                    --renderer.line(xtl_x+46*i+31, xtl_y + 13, xtl_x+46*i+22, xtl_y + 25, 255, 255, 255, 255)
+                    renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, 200, 200, 200, 200)
+                    renderer.line(xtl_x+46*i+31, xtl_y + 13, xtl_x+46*i+22, xtl_y + 25, 200, 200, 200, 200)
                 end
                 if intersect(xtl_x+46*i, xtl_y, 46, 40) then 
                     surface.draw_filled_rect(xtl_x+46*i,xtl_y,46,40,50,50,50,gl_opac)
@@ -457,8 +462,7 @@ function draw_hud()
             --end navigation
             surface.draw_filled_rect(xtl_x,xtl_y+50,xtl_w,xtl_h-290,26,26,26,gl_opac)
             surface.draw_filled_rect(xtl_x,xtl_y+menu_size[2]-145,xtl_w,230,26,26,26,gl_opac)
-            data.song_image:draw(xtl_x+8,xtl_y+menu_size[2]-137,214,214)
-            client.log(gl_opac)
+            data.song_image:draw(xtl_x+115+(-110*gl_unfuckedperc),xtl_y+menu_size[2]-(140*(gl_unfuckedperc)),220*gl_unfuckedperc,220*gl_unfuckedperc)
         else
             hud.cover_art_position:update(globals.frametime(), 55, nil)
             hud.extended.initpercentage:update(globals.frametime(), 0, nil)
@@ -484,7 +488,6 @@ function navHandler(index)
         elseif index == 3 then
         elseif index == 4 then
             hud.extended.Left[0] = false
-            
         end
     end
 end
