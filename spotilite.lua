@@ -56,6 +56,7 @@ end
 --client.log('optimized: ' .. x .. " self.y: " .. self.y)
 --else client.log('not optimized: ' .. x .. " self.y: " .. self.y)
 function dynamic:update(dt, x, dx)
+   if not x then return end -- stops all the fucking errors wallah
    if self.y == x then return self end
    if dx == nil then
       dx = ( x - self.px ) / dt
@@ -287,7 +288,9 @@ function get_window_colour()
     if ui.get(menu.options.cover_art_colour) and data.song_name ~= data.stored_name then 
         http.post('https://spotify.stbrouwers.cc/image', { headers = { ['Content-Type'] = 'application/json' }, body = json.stringify({url = data.image_url}) }, function(s, res)
             body = json.parse(res.body)
-            r, g ,b = body.color.r, body.color.g, body.color.b
+            if body.color then
+                r, g ,b = body.color.r, body.color.g, body.color.b
+            end
         end)
 
         data.stored_name = data.song_name
@@ -300,37 +303,38 @@ function get_window_colour()
 end
 
 function draw_spotify_window()
-    if authentication.status == "COMPLETED" and ui.get(menu.enable) then
-        local r, g, b = data.colours.r:get(), data.colours.g:get(), data.colours.b:get()
-        window.cover_art_position:update(globals.frametime(), ui.get(menu.options.cover_art) and 50 or 0, nil)
-        data.song_size = surface.get_text_size(fonts.title, data.song_name)
-        data.artist_size = surface.get_text_size(fonts.artist, data.artist_name)
-        window_x = window.x:get()
-        window_y = window.y:get()
-        window.w = data.song_size > data.artist_size and data.song_size + 40+window.cover_art_position:get() or data.artist_size + 40+window.cover_art_position:get()
-        surface.draw_filled_rect(window_x,window_y,window.w,window.h,r,g,b,130)
-        surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+5, 255, 255, 255, 255, fonts.title, data.song_name)
-        surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+35, 255, 255, 255, 255, fonts.artist, data.artist_name)
-        surface.draw_filled_rect(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
-        surface.draw_text(window_x+window.cover_art_position:get()/2-1, window_y+15, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
+    if authentication.status ~= "COMPLETED" or not ui.get(menu.enable) then return end
+    local r, g, b = data.colours.r:get(), data.colours.g:get(), data.colours.b:get()
+    window.cover_art_position:update(globals.frametime(), ui.get(menu.options.cover_art) and 50 or 0, nil)
+    data.song_size = surface.get_text_size(fonts.title, data.song_name)
+    data.artist_size = surface.get_text_size(fonts.artist, data.artist_name)
+    window_x = window.x:get()
+    window_y = window.y:get()
+    window.w = data.song_size > data.artist_size and data.song_size + 40+window.cover_art_position:get() or data.artist_size + 40+window.cover_art_position:get()
+    surface.draw_filled_rect(window_x,window_y,window.w,window.h,r,g,b,130)
+    surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+5, 255, 255, 255, 255, fonts.title, data.song_name)
+    surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+35, 255, 255, 255, 255, fonts.artist, data.artist_name)
+    surface.draw_filled_rect(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
+    surface.draw_text(window_x+window.cover_art_position:get()/2-1, window_y+15, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
+    if data.song_image then
         data.song_image:draw(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50)
-        if intersect(window_x, window_y, window.w, window.h) and client.key_state(0x01) then
-            window.moving = true
-        elseif not client.key_state(0x01) then
-            window.moving = false
+    end
+    if intersect(window_x, window_y, window.w, window.h) and client.key_state(0x01) then
+        window.moving = true
+    elseif not client.key_state(0x01) then
+        window.moving = false
+    end
+    if window.moving then
+        local mousepos = { ui.mouse_position() }
+        if window.offset then
+            mouseposx = mousepos[1] - window_x
+            mouseposy = mousepos[2] - window_y
+            window.offset = false
         end
-        if window.moving then
-            local mousepos = { ui.mouse_position() }
-            if window.offset then
-                mouseposx = mousepos[1] - window_x
-                mouseposy = mousepos[2] - window_y
-                window.offset = false
-            end
-            window.x:update(globals.frametime(), mousepos[1] - mouseposx, nil)
-            window.y:update(globals.frametime(), mousepos[2] - mouseposy, nil)
-        else
-            window.offset = true
-        end
+        window.x:update(globals.frametime(), mousepos[1] - mouseposx, nil)
+        window.y:update(globals.frametime(), mousepos[2] - mouseposy, nil)
+    else
+        window.offset = true
     end
 end
 
@@ -549,13 +553,13 @@ end
 
 client.set_event_callback("paint_ui", function()
     --debug()
-    --draw_spotify_window()
-    _, __ = pcall(draw_spotify_window)
+    draw_spotify_window()
+    --_, __ = pcall(draw_spotify_window)
     update_data()
     handle_menu()
     get_window_colour()
     draw_hud()
-    --_, __ = pcall(draw_hud)
+    _, __ = pcall(draw_hud)
     seek()
 end)
 
