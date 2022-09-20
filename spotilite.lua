@@ -25,7 +25,7 @@
     @@@@@@@@@@@@@@@@@@@///////////////////////@@@@@@@@@@@@@@@@@@
 ]]
 
-local ffi, http, surface, images = require "ffi", require "gamesense/http", require "gamesense/surface", require "gamesense/images"
+local ffi, http, surface, images, spotify = require "ffi", require "gamesense/http", require "gamesense/surface", require "gamesense/images", require "spotifyAPI"
 
 local pi, max = math.pi, math.max
 
@@ -62,7 +62,7 @@ function dynamic:update(dt, x, dx)
       dx = ( x - self.px ) / dt
       self.px = x
    end
-
+   	
    if self.y == self.px then client.log("optimized:" .. x ..  "self.px: " .. self.px) return self end
    self.y  = self.y + dt * self.dy
    self.dy = self.dy + dt * ( x + self.c * dx - self.y - self.a * self.dy ) / self.b
@@ -106,29 +106,23 @@ local function CP()
 end
 
 local authentication = {
-    status = "UNINITIALISED",
     access_token = database.read("spotify_access_token") or "",
     refresh_token = database.read("spotify_refresh_token") or "",
 }
 
-local data = {
-    user,
-    device_id,
-    is_playing,
-    song_name,
-    artist_name,
-    song_image,
-    image_url,
-    duration,
-    timestamp,
-    delay = client.unix_time() + 2,
-    stored_name = "",
-    colours = {
-        r =  dynamic.new(2, 0.8, 0.5, 13),
-        g =  dynamic.new(2, 0.8, 0.5, 13),
-        b =  dynamic.new(2, 0.8, 0.5, 13),
-        a = 130
-    }
+local data = {}
+
+local colours = {        
+    r =  dynamic.new(2, 0.8, 0.5, 13),
+    g =  dynamic.new(2, 0.8, 0.5, 13),
+    b =  dynamic.new(2, 0.8, 0.5, 13),
+}
+
+local vars = {
+    delay = 2,
+    switch = false,
+    artist_string = "",
+    song_
 }
 
 local window = {
@@ -171,6 +165,12 @@ local hud = {
                     dynamic.new(2, 1, 1, -0.3),
                     dynamic.new(2, 1, 1, -0.3),
                     dynamic.new(2, 1, 1, -0.3),
+                },
+                active = {
+                    true,
+                    false,
+                    false,
+                    false,
                 }
             }
         },
@@ -201,70 +201,24 @@ local function intersect(x, y, w, h, d)
     return mousepos[1] >= x and mousepos[1] <= x + w and mousepos[2] >= y and mousepos[2] <= y + h
 end
 
-function gather_song_information()
-    http.get(string.format("https://api.spotify.com/v1/me/player?access_token=%s", authentication.access_token), function(s,r)
-        if r.status == 200 then
-            str = ""
-            jsondata = json.parse(r.body)
-            data.device_id = jsondata.device.id
-            data.is_playing = jsondata.is_playing
-            data.song_name = jsondata.item.name
-            for i = 1, #jsondata.item.artists do
-                str = i == #jsondata.item.artists and str .. jsondata.item.artists[i].name or str .. jsondata.item.artists[i].name ..  ", "
-            end
-            data.artist_name = str
-            data.album_name = jsondata.item.album.name
-            data.image_url = jsondata.item.album.images[1].url
-            data.duration = jsondata.item.duration_ms
-            data.timestamp = jsondata.progress_ms
-            stored_name = jsondata.item.name
-            http.get(jsondata.item.album.images[1].url, function(success, response)
-                if r.status == 200 then
-                    data.song_image = images.load_jpg(response.body)
-                end
-            end)
-            authentication.status = "COMPLETED"
-        else
-            authentication.status = "SONG_FAILURE"
-        end
-    end)
-end
-
-function auth()
-    authentication.status = "AUTHENTICATING"
-    http.get(string.format("https://spotify.stbrouwers.cc/refresh_token?refresh_token=%s", authentication.refresh_token), function(s, r)
-        if r.status ~= 200 then
-            authentication.status = "INVALID_REFRESH"
-            open_page("https://spotify.stbrouwers.cc")
-            authentication.status = "OPENED_BROWSER"
-        else
-            database.write("spotify_refresh_token", authentication.refresh_token)
-            database.write("spotify_access_token", authentication.access_token)
-            authentication.status = "TOKEN_OBTAINED"
-            local jsondata = json.parse(r.body)
-            authentication.access_token = jsondata.access_token
-            http.get(string.format("https://api.spotify.com/v1/me?access_token=%s", authentication.access_token), function(s,r)
-                authentication.status = "PROFILE_INFORMATION"
-                if r.body then
-                    jsondata = json.parse(r.body)
-                    data.user = jsondata.display_name
-                    if not data.user then
-                        auth()
-                    end
-                    authentication.status = "PROFILE_SAVED"
-                    gather_song_information()
-                    authentication.status = "SONG_INFORMATION"
-                end
-            end)
-        end
-    end)
+function auth(rtk)
+    if spotify.status() == "UNINITIALISED" or spotify.status() == "OPENED_BROWSER" then
+        client.log(rtk)
+        spotify.init(rtk)
+        database.write("spotify_refresh_token", rtk)
+    elseif spotify.status() == "INVALID_TOKEN" then
+        spotify.reset() 
+        spotify.promptlogin()
+    else
+        return
+    end 
 end
 
 local menu = {
     enable = ui.new_checkbox("MISC", "Miscellaneous", "\a1ED760FFSpoti\aFFFFFFFFLite"),
     authorization = {
         status = ui.new_label("MISC", "Miscellaneous", "\a1ED760FF> \affffffff UNINITIALISED"),
-        authorise = ui.new_button("MISC", "Miscellaneous", "\a1ED760FFAuthorise", function() authentication.refresh_token = CP(); auth() end),
+        authorise = ui.new_button("MISC", "Miscellaneous", "\a1ED760FFAuthorise",  function() auth(CP()) end),
     },
     options = {
         cover_art = ui.new_checkbox("MISC", "Miscellaneous", "\a1ED760FF> \affffffff Cover art"),
@@ -276,48 +230,51 @@ local menu = {
 }
 
 function update_data()
-    if authentication.status == "COMPLETED" or authentication.status == "SONG_FAILURE" then
-        if data.delay < client.unix_time() then
-            status, retval = pcall(gather_song_information) -- i love spotifys images and image library!
-            data.delay = client.unix_time() + 2
-        end
-    end
-end
+    if spotify.status() == "COMPLETED" or spotify.status() == "SONG_FAILURE" then
+        if vars.delay < client.unix_time() then
+            status, data = pcall(spotify.update) -- i love spotifys images and image library!
+            vars.delay = client.unix_time() + 2
 
-function get_window_colour()
-    if ui.get(menu.options.cover_art_colour) and data.song_name ~= data.stored_name then 
-        http.post('https://spotify.stbrouwers.cc/image', { headers = { ['Content-Type'] = 'application/json' }, body = json.stringify({url = data.image_url}) }, function(s, res)
-            body = json.parse(res.body)
-            if body.color then
-                r, g ,b = body.color.r, body.color.g, body.color.b
+            vars.artist_string = ""
+            for i = 1, #data.artists do
+                vars.artist_string = i == #data.artists and vars.artist_string .. data.artists[i].name or vars.artist_string .. data.artists[i].name ..  ", "
             end
-        end)
 
-        data.stored_name = data.song_name
-    elseif not ui.get(menu.options.cover_art_colour) then
-        r,g,b,a = ui.get(menu.options.background_colour)
+            http.get(data.image_url, function(success, response)
+                if response.status == 200 then
+                    vars.song_image = images.load_jpg(response.body)
+                end
+            end)
+        end
+
+        if ui.get(menu.options.cover_art_colour) and data.song_name ~= data.stored_name then 
+            r, g ,b = data.image_colours.r, data.image_colours.g, data.image_colours.b
+        elseif not ui.get(menu.options.cover_art_colour) then
+            r,g,b,a = ui.get(menu.options.background_colour)
+        end
+
+        colours.r:update(globals.frametime(), r, nil)
+        colours.g:update(globals.frametime(), g, nil)
+        colours.b:update(globals.frametime(), b, nil)
     end
-    data.colours.r:update(globals.frametime(), r, nil)
-    data.colours.g:update(globals.frametime(), g, nil)
-    data.colours.b:update(globals.frametime(), b, nil)
 end
 
 function draw_spotify_window()
-    if authentication.status ~= "COMPLETED" or not ui.get(menu.enable) then return end
-    local r, g, b = data.colours.r:get(), data.colours.g:get(), data.colours.b:get()
+    if spotify.status() ~= "COMPLETED" or not ui.get(menu.enable) then return end
+    local r, g, b = colours.r:get(), colours.g:get(), colours.b:get()
     window.cover_art_position:update(globals.frametime(), ui.get(menu.options.cover_art) and 50 or 0, nil)
     data.song_size = surface.get_text_size(fonts.title, data.song_name)
-    data.artist_size = surface.get_text_size(fonts.artist, data.artist_name)
+    data.artist_size = surface.get_text_size(fonts.artist, vars.artist_string)
     window_x = window.x:get()
     window_y = window.y:get()
     window.w = data.song_size > data.artist_size and data.song_size + 40+window.cover_art_position:get() or data.artist_size + 40+window.cover_art_position:get()
     surface.draw_filled_rect(window_x,window_y,window.w,window.h,r,g,b,130)
     surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+5, 255, 255, 255, 255, fonts.title, data.song_name)
-    surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+35, 255, 255, 255, 255, fonts.artist, data.artist_name)
+    surface.draw_text(window_x+15+window.cover_art_position:get(), window_y+35, 255, 255, 255, 255, fonts.artist, vars.artist_string)
     surface.draw_filled_rect(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
     surface.draw_text(window_x+window.cover_art_position:get()/2-1, window_y+15, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
-    if data.song_image then
-        data.song_image:draw(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50)
+    if vars.song_image then
+        vars.song_image:draw(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50)
     end
     if intersect(window_x, window_y, window.w, window.h) and client.key_state(0x01) then
         window.moving = true
@@ -339,7 +296,7 @@ function draw_spotify_window()
 end
 
 function draw_hud()
-    if authentication.status == "COMPLETED" and ui.get(menu.options.hud) and ui.is_menu_open() and ui.get(menu.enable) then
+    if spotify.status() == "COMPLETED" and ui.get(menu.options.hud) and ui.is_menu_open() and ui.get(menu.enable) then
         menu_position = {ui.menu_position()}
         menu_size = {ui.menu_size()}
         mouse_position = { ui.mouse_position() }
@@ -349,12 +306,14 @@ function draw_hud()
         hud_h = hud.h:get()
         surface.draw_filled_rect(hud_x,hud_y,hud_w,hud_h,26,26,26,255)
         surface.draw_filled_rect(hud_x+10,hud_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
-        surface.draw_text(hud_x+30, hud_y+20, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
-        if data.song_image then
-            data.song_image:draw(hud_x+10,hud_y+10,hud.cover_art_position:get(),55)
+        if not hud.extended.Left[0] then
+            surface.draw_text(hud_x+30, hud_y+20, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
+        end
+        if vars.song_image then
+            vars.song_image:draw(hud_x+10,hud_y+10,hud.cover_art_position:get(),55)
         end
         surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+10, 255, 255, 255, 255, fonts.title, data.song_name)
-        surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+42, 255, 255, 255, 255, fonts.artist, data.artist_name)
+        surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+42, 255, 255, 255, 255, fonts.artist, vars.artist_string)
         surface.draw_filled_gradient_rect(hud_x+390, hud_y, 30, hud_h, 26,26,26,0, 26,26,26,hud.hover_alpha:get(), true)
         surface.draw_filled_rect(hud_x+420,hud_y,hud_w-420,hud_h,26,26,26,hud.hover_alpha:get())
         if intersect(hud_x-10,hud_y,hud_w,hud_h) then
@@ -404,7 +363,7 @@ function draw_hud()
             hud.back_alpha:update(globals.frametime(), 0, nil)
             hud.next_alpha:update(globals.frametime(), 0, nil)
             if client.key_state(0x01) and not clicked_once then
-                play_pause()
+                spotify.playpause()
                 clicked_once = true
             end
         elseif intersect(hud_x+hud_w/2-55, hud_y+hud_h/2-5, 30, 20) then
@@ -412,7 +371,7 @@ function draw_hud()
             hud.back_alpha:update(globals.frametime(), 127.5, nil)
             hud.next_alpha:update(globals.frametime(), 0, nil)
             if client.key_state(0x01) and not clicked_once then
-                skip("previous")
+                spotify.previous()
                 clicked_once = true
             end
         elseif intersect(hud_x+hud_w/2+25, hud_y+hud_h/2-5, 30, 20) then
@@ -420,7 +379,7 @@ function draw_hud()
             hud.back_alpha:update(globals.frametime(), 0, nil)
             hud.next_alpha:update(globals.frametime(), 127.5, nil)
             if client.key_state(0x01) and not clicked_once then
-                skip("next")
+                spotify.next()
                 clicked_once = true
             end
         elseif not client.key_state(0x01) and clicked_once then
@@ -442,11 +401,11 @@ function draw_hud()
             gl_unfuckedperc = math.ceil(gl_perc*100)/100
 
             gl_opac = math.ceil(gl_perc*255)
-            client.log(gl_opac .. " " .. tostring(hud.extended.Left[0]) .. "percent: " .. gl_perc)
+            --client.log(gl_opac .. " " .. tostring(hud.extended.Left[0]) .. "percent: " .. gl_perc)
 
             surface.draw_filled_rect(xtl_x,xtl_y,xtl_w,40,26,26,26, gl_opac)
+
             --start navigation
-            --create forloop for navigation
             for i = 0, 4 do
                 if i == 4 then
                     renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, 200, 200, 200, 200)
@@ -464,9 +423,23 @@ function draw_hud()
                 i = i + 1
             end
             --end navigation
+
+            --start context rendering
+            if hud.extended.Left.navigation.active[0] then
+                
+            elseif hud.extended.Left.navigation.active[1] then
+
+            elseif hud.extended.Left.navigation.active[2] then
+
+            elseif hud.extended.Left.navigation.active[3] then
+
+            end
+
             surface.draw_filled_rect(xtl_x,xtl_y+50,xtl_w,xtl_h-290,26,26,26,gl_opac)
             surface.draw_filled_rect(xtl_x,xtl_y+menu_size[2]-145,xtl_w,230,26,26,26,gl_opac)
-            data.song_image:draw(xtl_x+115+(-110*gl_unfuckedperc),xtl_y+menu_size[2]-(140*(gl_unfuckedperc)),220*gl_unfuckedperc,220*gl_unfuckedperc)
+            if vars.song_image then
+                vars.song_image:draw(xtl_x+115+(-110*gl_unfuckedperc),xtl_y+menu_size[2]-(140*(gl_unfuckedperc)),220*gl_unfuckedperc,220*gl_unfuckedperc)
+            end
         else
             hud.cover_art_position:update(globals.frametime(), 55, nil)
             hud.extended.initpercentage:update(globals.frametime(), 0, nil)
@@ -485,12 +458,15 @@ end
 function navHandler(index)
     if client.key_state(0x01) and not clicked_once then
         clicked_once = true
-        
-        if index == 0 then
-        elseif index == 1 then
-        elseif index == 2 then
-        elseif index == 3 then
-        elseif index == 4 then
+        for i = 0, 3 do
+            if index == i then
+                hud.extended.Left.navigation.active[i] = true
+            else
+                hud.extended.Left.navigation.active[i] = false
+            end
+        end
+
+        if index == 4 then
             hud.extended.Left[0] = false
         end
     end
@@ -502,8 +478,7 @@ function seek()
         if client.key_state(0x01) and not is_mouse_pressed then
             mouse_position = { ui.mouse_position() }
             time_to_seek = (data.duration/hud_w) * (mouse_position[1]-hud_x)
-            local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
-            http.put("https://api.spotify.com/v1/me/player/seek?position_ms=" .. math.floor(time_to_seek) .. "&device_id=" .. data.device_id, http_options, function(s, r) end)
+            spotify.seek(time_to_seek)
             is_mouse_pressed = true
         elseif not client.key_state(0x01) and is_mouse_pressed then
             is_mouse_pressed = false
@@ -511,64 +486,42 @@ function seek()
     end
 end
 
-function play_pause()
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
-
-    if data.is_playing then
-        http.put("https://api.spotify.com/v1/me/player/pause?&device_id=" .. data.device_id, http_options, function(s, r) end)
-    else
-        http.put("https://api.spotify.com/v1/me/player/play?&device_id=" .. data.device_id, http_options, function(s, r) end)
-    end
-end
-
-function skip(mode)
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. authentication.access_token,["Content-length"] = 0}}
-    
-    if mode == "next" then
-        http.post("https://api.spotify.com/v1/me/player/next?device_id=" .. data.device_id, http_options, function(s, r) end) 
-    elseif mode == "previous" then
-        http.post("https://api.spotify.com/v1/me/player/previous?device_id=" .. data.device_id, http_options, function(s, r) end) 
-    end
-end
-
 function handle_menu()
-    ui.set_visible(menu.authorization.authorise, ui.get(menu.enable) and authentication.status ~= "COMPLETED")
+    ui.set_visible(menu.authorization.authorise, ui.get(menu.enable) and spotify.status() ~= "COMPLETED")
     ui.set_visible(menu.authorization.status, ui.get(menu.enable))
     for i,v in pairs(menu.options) do
         if i == "background_colour" or i == "background_colour_label" then
-            ui.set_visible(v, ui.get(menu.enable) and authentication.status == "COMPLETED" and not ui.get(menu.options.cover_art_colour))
+            ui.set_visible(v, ui.get(menu.enable) and spotify.status() == "COMPLETED" and not ui.get(menu.options.cover_art_colour))
         else
-            ui.set_visible(v, ui.get(menu.enable) and authentication.status == "COMPLETED")
+            ui.set_visible(v, ui.get(menu.enable) and spotify.status() == "COMPLETED")
         end
     end
-    ui.set(menu.authorization.status, "\a1ED760FF> \affffffff "..authentication.status)
+    ui.set(menu.authorization.status, "\a1ED760FF> \affffffff ".. spotify.status())
 end
 
 function debug()
-    renderer.text(100,100,255,255,255,255,"+",0,authentication.status)
+    renderer.text(100,100,255,255,255,255,"+",0,spotify.status())
     renderer.text(100,130,255,255,255,255,"+",0,data.user)
     renderer.text(100,160,255,255,255,255,"+",0,data.song_name)
-    renderer.text(100,190,255,255,255,255,"+",0,data.artist_name)
+    renderer.text(100,190,255,255,255,255,"+",0,vars.artist_string)
 end
 
 client.set_event_callback("paint_ui", function()
-    --debug()
+    debug()
     draw_spotify_window()
     --_, __ = pcall(draw_spotify_window)
     update_data()
     handle_menu()
-    get_window_colour()
     draw_hud()
-    _, __ = pcall(draw_hud)
+    --_, __ = pcall(draw_hud)
     seek()
 end)
 
 client.set_event_callback("shutdown", function()
-    database.write("spotify_refresh_token", authentication.refresh_token)
     database.write("spotify_x", window.x:get())
     database.write("spotify_y", window.y:get())
 end)
 
 if database.read("spotify_refresh_token") then
-    auth()
+    auth(authentication.refresh_token)
 end
