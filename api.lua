@@ -29,6 +29,10 @@ local data = {
     current_volume,
 }
 
+local private_data = {
+    previous_song_name = "",
+}
+
 function api.promptlogin()
     local url = "https://spotify.stbrouwers.cc"
     local js = panorama.loadstring([[
@@ -38,13 +42,16 @@ function api.promptlogin()
             }
         }
     ]])()
-    js.open_url(page_url)
+    js.open_url(url)
+    auth.status = "OPENED_BROWSER"
 end
 
 function api.init(rkey)
+    auth.status = "AUTHENTICATING"
     http.get(string.format("https://spotify.stbrouwers.cc/refresh_token?refresh_token=%s", rkey), function(s, r)
         if r.status ~= 200 then
             auth.status = "INVALID_TOKEN"
+            return auth.status
         else
             auth.status = "TOKEN_OBTAINED"
             local jsondata = json.parse(r.body)
@@ -55,12 +62,14 @@ function api.init(rkey)
                 if r.body then
                     jsondata = json.parse(r.body)
                     data.user = jsondata.display_name
+                    api.update()
                     if not data.user then
                         api.init()
                     end
                     auth.status = "PROFILE_SAVED"
                 end
             end)
+            return auth.status
         end
     end)
 end
@@ -68,11 +77,12 @@ end
 function api.update()
     http.get(string.format("https://api.spotify.com/v1/me/player?access_token=%s", auth.access_token), function(s,r)
         if r.status == 200 then
+            client.log("Spotify API: Successfully updated")
             jsondata = json.parse(r.body)
             data.device_id = jsondata.device.id
             data.is_playing = jsondata.is_playing
             data.song_name = jsondata.item.name
-            data.artist_name = jsondata.item.artists[1].name
+            data.artists = jsondata.item.artists
             data.album_name = jsondata.item.album.name
             data.image_url = jsondata.item.album.images[1].url
             data.duration = jsondata.item.duration_ms
@@ -82,7 +92,18 @@ function api.update()
                     data.song_image = response.body
                 end
             end)
+
+            if private_data.previous_song_name ~= data.song_name then
+                private_data.previous_song_name = data.song_name
+                http.post('https://spotify.stbrouwers.cc/image', { headers = { ['Content-Type'] = 'application/json' }, body = json.stringify({url = data.image_url}) }, function(s, res)
+                    body = json.parse(res.body)
+                    if body.color then
+                        data.image_colours.r, data.image_colours.g, data.image_colours.b = body.color.r, body.color.g, body.color.b
+                    end
+                end)
+            end
             auth.status = "COMPLETED"
+
         else
             auth.status = "SONG_FAILURE"
         end
@@ -207,7 +228,7 @@ function api.get_playlist_tracks(id, l, o)
     end)
 end
 
-function api.getstatus()
+function api.status()
     return auth.status
 end
 
