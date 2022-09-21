@@ -27,9 +27,35 @@
 
 local ffi, http, surface, images, spotify = require "ffi", require "gamesense/http", require "gamesense/surface", require "gamesense/images", require "spotifyAPI"
 
+ffi.cdef[[
+    typedef bool (__thiscall *IsButtonDown_t)(void*, int);
+    typedef int (__thiscall *GetAnalogValue_t)(void*, int);
+	typedef int (__thiscall *GetAnalogDelta_t)(void*, int);
+    typedef void***(__thiscall* FindHudElement_t)(void*, const char*);
+    typedef void(__cdecl* ChatPrintf_t)(void*, int, int, const char*, ...);
+]]
+
+local interface_ptr = ffi.typeof('void***')
+local raw_inputsystem = client.create_interface('inputsystem.dll', 'InputSystemVersion001')
+local inputsystem = ffi.cast(interface_ptr, raw_inputsystem)
+local input_vmt = inputsystem[0]
+local raw_IsButtonDown = input_vmt[15]
+local raw_GetAnalogValue = input_vmt[18]
+local raw_GetAnalogDelta = input_vmt[19]
+local IsButtonDown = ffi.cast('IsButtonDown_t', raw_IsButtonDown)
+local GetAnalogValue = ffi.cast('GetAnalogValue_t', raw_GetAnalogValue)
+local GetAnalogDelta = ffi.cast('GetAnalogDelta_t', raw_GetAnalogDelta)
+
+local native_GetClipboardTextCount = vtable_bind("vgui2.dll", "VGUI_System010", 7, "int(__thiscall*)(void*)")
+local native_GetClipboardText = vtable_bind("vgui2.dll", "VGUI_System010", 11, "int(__thiscall*)(void*, int, const char*, int)")
+local new_char_arr = ffi.typeof("char[?]")
+
+
 local pi, max = math.pi, math.max
 
 local dynamic = {}
+local mouse_state = {}
+
 dynamic.__index = dynamic
 
 function dynamic.new(f, z, r, xi)
@@ -73,6 +99,101 @@ function dynamic:get()
    return self.y
 end
 
+local hud = {
+    x = dynamic.new(8, 2, 1, select(1, ui.menu_position())),
+    y = dynamic.new(8, 2, 1, select(2, ui.menu_position()) + select(2, ui.menu_size()) + 10),
+    w = dynamic.new(8, 1, 1, select(1, ui.menu_size())),
+    h = dynamic.new(2, 1, 1, 75),
+    bar_width = dynamic.new(2, 1, 1, 2),
+    bar_length = dynamic.new(3, 1, 1, 0),
+    hover_alpha = dynamic.new(6, 1, 0.8, 255),
+    hover_movement  = dynamic.new(1.5, 1, 0.8, 0),
+    play_alpha = dynamic.new(2, 1, 1, 0),
+    next_alpha = dynamic.new(2, 1, 1, 0),
+    back_alpha = dynamic.new(2, 1, 1, 0),
+    song_name = "", -- so it adapts to menu size bratan kuku bra
+    cover_art_position = dynamic.new(4, 1, 1, 55),
+    extended = {
+        initpercentage = dynamic.new(2, 1, 1, 0),
+        Left = {
+            false,
+            x = dynamic.new(8, 2, 1, select(1, ui.menu_position()-240)),
+            y = dynamic.new(8, 2, 1, select(2, ui.menu_position())),
+            w = dynamic.new(8, 1, 1, 230),
+            h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
+
+            navigation = {
+                bar_height = {
+                    dynamic.new(2, 1, 1, -0.3),
+                    dynamic.new(2, 1, 1, -0.3),
+                    dynamic.new(2, 1, 1, -0.3),
+                    dynamic.new(2, 1, 1, -0.3),
+                    dynamic.new(2, 1, 1, -0.3),
+                },
+                active = {
+                    true,
+                    false,
+                    false,
+                    false,
+                }
+            },
+
+            context = {
+                scrollvalue = 0,
+                last_analogvalue = 0,
+                scrollmin = 0,
+                scrollmax = 0,
+                itemcount = 0,
+                maxitemcount = 0,
+            }
+        },
+        Right = {
+            false,
+            x = dynamic.new(8, 2, 1, select(1, ui.menu_position()) + select(1, ui.menu_size()) + 10),
+            y = dynamic.new(8, 2, 1, select(2, ui.menu_position())),
+            w = dynamic.new(8, 1, 1, 300),
+            h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
+        },
+    }
+}
+
+--start scrollwheel
+function mouse_state.new()
+	return setmetatable({tape = 0, laststate = 0, initd = false, events = {}}, {__index = mouse_state})
+end
+local scrollstate = mouse_state.new()
+
+function mouse_state:init()
+    if not self.init then
+        self.tape = 0
+        self.laststate = GetAnalogDelta(inputsystem, 0x03)
+        self.initd = true
+    end
+    if GetAnalogDelta(inputsystem, 0x03) == 0 and self.tape ~= 0 then
+        self.tape = 0
+        return
+    end
+    local currentTape = GetAnalogValue(inputsystem, 0x03)
+    if currentTape > self.tape then
+        for index, value in ipairs(self.events) do
+            value({state = "Up", pos = currentTape})
+        end
+        self.tape = currentTape
+    elseif currentTape < self.tape then
+        for index, value in ipairs(self.events) do
+            value({state = "Down", pos = currentTape})
+        end
+        self.tape = currentTape
+    end
+
+    if GetAnalogValue(inputsystem, 0x03) >= hud.extended.Left.context.last_analogvalue + 1 and not hud.extended.Left.context.scrollmin then
+        hud.extended.Left.context.scrollvalue = hud.extended.Left.context.scrollvalue + 1
+    elseif GetAnalogValue(inputsystem, 0x03) <= hud.extended.Left.context.last_analogvalue - 1 and not hud.extended.Left.context.scrollmax then
+        hud.extended.Left.context.scrollvalue = hud.extended.Left.context.scrollvalue - 1
+    end
+    hud.extended.Left.context.last_analogvalue = GetAnalogValue(inputsystem, 0x03)
+end
+
 switch = function(check)                                        
     return function(cases)
         if type(cases[check]) == "function" then
@@ -83,9 +204,9 @@ switch = function(check)
     end
 end
 
-local native_GetClipboardTextCount = vtable_bind("vgui2.dll", "VGUI_System010", 7, "int(__thiscall*)(void*)")
-local native_GetClipboardText = vtable_bind("vgui2.dll", "VGUI_System010", 11, "int(__thiscall*)(void*, int, const char*, int)")
-local new_char_arr = ffi.typeof("char[?]")
+function round(n)
+	return n % 1 >= 0.5 and math.ceil(n) or math.floor(n)
+end
 
 local js = panorama.open()
 local persona = js.MyPersonaAPI
@@ -135,55 +256,6 @@ local window = {
     cover_art_position = dynamic.new(4, 1, 1, 0),
 }
 
-local hud = {
-    x = dynamic.new(8, 2, 1, select(1, ui.menu_position())),
-    y = dynamic.new(8, 2, 1, select(2, ui.menu_position()) + select(2, ui.menu_size()) + 10),
-    w = dynamic.new(8, 1, 1, select(1, ui.menu_size())),
-    h = dynamic.new(2, 1, 1, 75),
-    bar_width = dynamic.new(2, 1, 1, 2),
-    bar_length = dynamic.new(3, 1, 1, 0),
-    hover_alpha = dynamic.new(6, 1, 0.8, 255),
-    hover_movement  = dynamic.new(1.5, 1, 0.8, 0),
-    play_alpha = dynamic.new(2, 1, 1, 0),
-    next_alpha = dynamic.new(2, 1, 1, 0),
-    back_alpha = dynamic.new(2, 1, 1, 0),
-    song_name = "", -- so it adapts to menu size bratan kuku bra
-    cover_art_position = dynamic.new(4, 1, 1, 55),
-    extended = {
-        initpercentage = dynamic.new(2, 1, 1, 0),
-        Left = {
-            false,
-            x = dynamic.new(8, 2, 1, select(1, ui.menu_position()-240)),
-            y = dynamic.new(8, 2, 1, select(2, ui.menu_position())),
-            w = dynamic.new(8, 1, 1, 230),
-            h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
-
-            navigation = {
-                bar_height = {
-                    dynamic.new(2, 1, 1, -0.3),
-                    dynamic.new(2, 1, 1, -0.3),
-                    dynamic.new(2, 1, 1, -0.3),
-                    dynamic.new(2, 1, 1, -0.3),
-                    dynamic.new(2, 1, 1, -0.3),
-                },
-                active = {
-                    true,
-                    false,
-                    false,
-                    false,
-                }
-            }
-        },
-        Right = {
-            false,
-            x = dynamic.new(8, 2, 1, select(1, ui.menu_position()) + select(1, ui.menu_size()) + 10),
-            y = dynamic.new(8, 2, 1, select(2, ui.menu_position())),
-            w = dynamic.new(8, 1, 1, 300),
-            h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
-        },
-    }
-}
-
 local function open_page(page_url) 
     local js = panorama.loadstring([[
         return {
@@ -219,6 +291,8 @@ local menu = {
     authorization = {
         status = ui.new_label("MISC", "Miscellaneous", "\a1ED760FF> \affffffff UNINITIALISED"),
         authorise = ui.new_button("MISC", "Miscellaneous", "\a1ED760FFAuthorise",  function() auth(CP()) end),
+        reset = ui.new_button("MISC", "Miscellaneous", "\a1ED760FFreset",  function() spotify.reset() end),
+
     },
     options = {
         cover_art = ui.new_checkbox("MISC", "Miscellaneous", "\a1ED760FF> \affffffff Cover art"),
@@ -411,22 +485,54 @@ function draw_hud()
                     renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, 200, 200, 200, 200)
                     renderer.line(xtl_x+46*i+31, xtl_y + 13, xtl_x+46*i+22, xtl_y + 25, 200, 200, 200, 200)
                 end
-                if intersect(xtl_x+46*i, xtl_y, 46, 40) then 
+                if intersect(xtl_x+46*i, xtl_y, 45, 40) then 
                     surface.draw_filled_rect(xtl_x+46*i,xtl_y,46,40,50,50,50,gl_opac)
                     hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), 4, nil)
                     navHandler(i)
-
                 else
-                    hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), -0.3, nil)
+                    if hud.extended.Left.navigation.active[i] then
+                        surface.draw_filled_rect(xtl_x+46*i,xtl_y,46,40,50,50,50,gl_opac)
+                        hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), 4, nil)
+                    else
+                        hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), -0.3, nil)
+                    end
                 end
+
                 surface.draw_filled_rect(xtl_x+46*i,xtl_y+41-hud.extended.Left.navigation.bar_height[i+1]:get(), 46, hud.extended.Left.navigation.bar_height[i+1]:get(),0,255,0,(gl_opac/4)*hud.extended.Left.navigation.bar_height[i+1]:get())
                 i = i + 1
             end
             --end navigation
 
             --start context rendering
+            hud.extended.Left.context.maxitemcount = 20
+            hud.extended.Left.context.itemcount = 50
+
+            if intersect(xtl_x, xtl_y+60, xtl_w, xtl_h) then
+                if hud.extended.Left.context.scrollvalue >= 0 then
+                    hud.extended.Left.context.scrollmin = true
+                else
+                    hud.extended.Left.context.scrollmin = false
+                end
+                if hud.extended.Left.context.scrollvalue <= (hud.extended.Left.context.itemcount*-1+hud.extended.Left.context.maxitemcount) then
+                    hud.extended.Left.context.scrollmax = true
+                else
+                    hud.extended.Left.context.scrollmax = false
+                end
+                scrollstate:init()
+            end
+
+            local fart = 1
+
             if hud.extended.Left.navigation.active[0] then
-                
+                for i = data.playlists_local_total, 1, -1 do
+                    client.log(hud.extended.Left.context.scrollvalue)
+                    if hud.extended.Left.context.scrollvalue*-1+fart <= hud.extended.Left.context.itemcount then
+                        client.log(hud.extended.Left.context.scrollvalue)
+                        surface.draw_text(hud_x + hud_w + 12, hud_y + 60 + (20 * fart), 180, 180, 180, 255, fonts.title, tostring(data.playlists[hud.extended.Left.context.scrollvalue+fart].name))
+                        fart = fart + 1
+                    end
+                end
+                local fart = 1
             elseif hud.extended.Left.navigation.active[1] then
 
             elseif hud.extended.Left.navigation.active[2] then
@@ -434,6 +540,7 @@ function draw_hud()
             elseif hud.extended.Left.navigation.active[3] then
 
             end
+            --end context rendering
 
             surface.draw_filled_rect(xtl_x,xtl_y+50,xtl_w,xtl_h-290,26,26,26,gl_opac)
             surface.draw_filled_rect(xtl_x,xtl_y+menu_size[2]-145,xtl_w,230,26,26,26,gl_opac)
@@ -458,6 +565,18 @@ end
 function navHandler(index)
     if client.key_state(0x01) and not clicked_once then
         clicked_once = true
+        client.log(index)
+
+        if index == 4 then
+            hud.extended.Left[0] = false
+            clicked_once = false
+            return
+        end
+
+        if index == 0 then
+            spotify.get_user_playlists(10, 0)
+        end
+
         for i = 0, 3 do
             if index == i then
                 hud.extended.Left.navigation.active[i] = true
@@ -466,9 +585,8 @@ function navHandler(index)
             end
         end
 
-        if index == 4 then
-            hud.extended.Left[0] = false
-        end
+    elseif not client.key_state(0x01) and clicked_once then
+        clicked_once = false
     end
 end
 
@@ -504,6 +622,8 @@ function debug()
     renderer.text(100,130,255,255,255,255,"+",0,data.user)
     renderer.text(100,160,255,255,255,255,"+",0,data.song_name)
     renderer.text(100,190,255,255,255,255,"+",0,vars.artist_string)
+    renderer.text(100,220,255,255,255,255,"+",0,data.playlists_local_total)
+
 end
 
 client.set_event_callback("paint_ui", function()
@@ -516,6 +636,9 @@ client.set_event_callback("paint_ui", function()
     --_, __ = pcall(draw_hud)
     seek()
 end)
+
+local gaySexgamer = mouse_state.new()
+gaySexgamer:init()
 
 client.set_event_callback("shutdown", function()
     database.write("spotify_x", window.x:get())
