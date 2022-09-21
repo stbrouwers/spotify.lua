@@ -26,6 +26,7 @@ local data = {
     timestamp,
     playlists = {},
     playlists_total,
+    playlists_local_total = 0,
     current_volume,
 }
 
@@ -196,16 +197,17 @@ end
 
 function api.get_user_playlists(l, o)
     local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
-    http.get(string.format("https://api.spotify.com/v1/me/playlists?limit=".. l .. "&offset=".. o, http_options), function(s,r)
+    http.get("https://api.spotify.com/v1/me/playlists?limit=".. l .. "&offset=".. o, http_options, function(s,r)
         if r.status == 200 then
             jsondata = json.parse(r.body)
-            data.playlists_total = jsondata.total
-            for i = 1, jsondata.items do
+            data.playlists_user_total = jsondata.total
+            for i = 1, #jsondata.items do
                 data.playlists[i] = {
                     name = jsondata.items[i].name,
                     uri = jsondata.items[i].uri,
                     tracks = {}
                 }
+                data.playlists_local_total = data.playlists_local_total + 1
             end
         end
     end)
