@@ -32,6 +32,7 @@ local data = {
 
 local private_data = {
     previous_song_name = "",
+    playlists_next,
 }
 
 function api.promptlogin()
@@ -195,19 +196,31 @@ function api.seek(a)
     http.put("https://api.spotify.com/v1/me/player/seek?position_ms=" .. math.floor(a) .. "&device_id=" .. data.device_id, http_options, function(s, r) end)
 end
 
-function api.get_user_playlists(l, o)
+function api.get_user_playlists(l, o, f)
+    local query
     local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
-    http.get("https://api.spotify.com/v1/me/playlists?limit=".. l .. "&offset=".. o, http_options, function(s,r)
+
+    if f and private_data.playlists_next ~= nil then
+        query = tostring(private_data.playlists_next)
+    else
+        query = "https://api.spotify.com/v1/me/playlists?limit=".. l .. "&offset=".. o
+    end
+
+    http.get(query, http_options, function(s,r)
         if r.status == 200 then
             jsondata = json.parse(r.body)
             data.playlists_user_total = jsondata.total
             for i = 1, #jsondata.items do
-                data.playlists[i] = {
+                data.playlists[data.playlists_local_total+1] = {
                     name = jsondata.items[i].name,
                     uri = jsondata.items[i].uri,
-                    tracks = {}
+                    tracks = {},
                 }
                 data.playlists_local_total = data.playlists_local_total + 1
+            end
+            private_data.playlists_next = jsondata.next
+            if jsondata.next ~= nil and f then
+                api.get_user_playlists(0, 0, true)
             end
         end
     end)
