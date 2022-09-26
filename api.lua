@@ -9,6 +9,11 @@ local auth = {
     access_token,
 }
 
+local update = {
+    status = "UNINITIALISED",
+    async = false,
+}
+
 local data = {
     user,
     device_id,
@@ -77,6 +82,7 @@ function api.init(rkey)
 end
 
 function api.update()
+    update.status = "ONGOING"
     http.get(string.format("https://api.spotify.com/v1/me/player?access_token=%s", auth.access_token), function(s,r)
         if r.status == 200 then
             client.log("Spotify API: Successfully updated")
@@ -89,11 +95,6 @@ function api.update()
             data.image_url = jsondata.item.album.images[1].url
             data.duration = jsondata.item.duration_ms
             data.timestamp = jsondata.progress_ms
-            http.get(jsondata.item.album.images[1].url, function(success, response)
-                if r.status == 200 then
-                    data.song_image = response.body
-                end
-            end)
 
             if private_data.previous_song_name ~= data.song_name then
                 private_data.previous_song_name = data.song_name
@@ -105,13 +106,14 @@ function api.update()
                 end)
             end
             auth.status = "COMPLETED"
-
+            update.status = "COMPLETED"
+            update.async = true
         else
             auth.status = "SONG_FAILURE"
+            update.status = "FAILED"
         end
+        return data
     end)
-
-    return data
 end
 
 function api.get_data()
@@ -243,8 +245,14 @@ function api.get_playlist_tracks(id, l, o)
     end)
 end
 
-function api.status()
+function api.authstatus()
     return auth.status
+end
+
+function api.updateasync()
+    local x = update.async
+    update.async = false
+    return x
 end
 
 function api.reset()
