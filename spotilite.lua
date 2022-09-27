@@ -82,8 +82,8 @@ end
 --client.log('optimized: ' .. x .. " self.y: " .. self.y)
 --else client.log('not optimized: ' .. x .. " self.y: " .. self.y)
 function dynamic:update(dt, x, dx)
-   if not x then return end -- stops all the fucking errors wallah
-   if self.y == x then return self end
+   if not x then return end -- stops all the fucking errors wallah`
+   if self.y == x then return self end --epic
    if dx == nil then
       dx = ( x - self.px ) / dt
       self.px = x
@@ -478,7 +478,6 @@ function draw_hud()
         if client.key_state(0x01) and not clicked_once then
             spotify.playpause()
             clicked_once = true
-            data.is_playing = not data.is_playing
         end
     elseif intersect(hud_x+hud_w/2-55, hud_y+hud_h/2-5, 30, 20) then
         hud.play_alpha:update(globals.frametime(), 0, nil)
@@ -547,36 +546,61 @@ function draw_hud()
         --end navigation
 
         --start context rendering
-        hud.extended.Left.context.maxitemcount = 20
-        hud.extended.Left.context.itemcount = data.playlists_local_total
         local scroll_value = hud.extended.Left.context.scrollvalue*-1
         local item_index = 1
 
         surface.draw_filled_rect(xtl_x + 10, xtl_y + 80, (xtl_w - 20)*hud.extended.Left.context.titlelinewidth:get(), 1, 70, 70, 70, 255)
         if hud.extended.Left.navigation.active[0] then
+            hud.extended.Left.context.itemcount = data.playlists_local_total
+            client.log(round(260/(xtl_h-290)))
+            local rm = round(260/(xtl_h-290))
+            hud.extended.Left.context.maxitemcount = round(((xtl_h-290)/33))-rm
+            surface.draw_text(xtl_x + 12, xtl_y + 60, 210, 210, 210, 255, fonts.hud_navtitle, "Your library")
+            hud.extended.Left.context.titlelinewidth:update(globals.frametime(), 0.505, nil)
             if data.playlists_local_total == data.playlists_user_total then
-                hud.extended.Left.context.titlelinewidth:update(globals.frametime(), 0.505, nil)
-                surface.draw_text(xtl_x + 12, xtl_y + 60, 180, 180, 180, 255, fonts.hud_navtitle, "Your library")
                 for i = hud.extended.Left.context.maxitemcount, 1, -1 do
                     --client.log(scroll_value .. " scrolli: ".. item_index .." scrollmax: ".. hud.extended.Left.context.maxitemcount .. " local pcount: " .. data.playlists_local_total .. " item_index-scroll_value:" .. item_index+hud.extended.Left.context.scrollvalue)
                     if scroll_value+item_index <= hud.extended.Left.context.itemcount then
-                        surface.draw_text(xtl_x + 12, xtl_y + 70 + (30 * item_index), 180, 180, 180, 255, fonts.hud_playlist, tostring(data.playlists[scroll_value+item_index].name))
+                        local pname = tostring(data.playlists[scroll_value+item_index].name)
+                        if pname:len() > 20 then
+                            pname = pname:sub(1, 20) .. "..."
+                        end
+                        if intersect(xtl_x + 6, xtl_y + 70 + (30 * item_index), 224, 29) then
+                            if client.key_state(0x01) then
+                                surface.draw_text(xtl_x + 12, xtl_y + 70 + (30 * item_index), 160, 160, 160, 160, fonts.hud_playlist, pname)
+                                if not clicked_once then
+                                    hud.extended.Right[0] = true
+                                    clicked_once = true
+                                end
+                            else
+                                surface.draw_text(xtl_x + 12, xtl_y + 70 + (30 * item_index), 230, 230, 230, 255, fonts.hud_playlist, pname)
+                            end
+                        else
+                            surface.draw_text(xtl_x + 12, xtl_y + 70 + (30 * item_index), 160, 160, 160, 160, fonts.hud_playlist, pname)
+                        end
                         item_index = item_index + 1
                     end
                 end
                 item_index = 1
             else
-                buffer(xtl_x+114, ((xtl_h-290)/2)+(xtl_y+50), 28, 1)
+                buffer(xtl_x+114, ((xtl_h-290)/2)+(xtl_y+60), 28, 1)
             end
         elseif hud.extended.Left.navigation.active[1] then
+            hud.extended.Left.context.itemcount = 0
             hud.extended.Left.context.titlelinewidth:update(globals.frametime(), 0.30, nil)
-            surface.draw_text(xtl_x + 12, xtl_y + 60, 180, 180, 180, 255, fonts.hud_navtitle, "Search")
+            surface.draw_text(xtl_x + 12, xtl_y + 60, 210, 210, 210, 255, fonts.hud_navtitle, "Search")
         elseif hud.extended.Left.navigation.active[2] then
+            hud.extended.Left.context.itemcount = 0
             hud.extended.Left.context.titlelinewidth:update(globals.frametime(), 0.36, nil)
-            surface.draw_text(xtl_x + 12, xtl_y + 60, 180, 180, 180, 255, fonts.hud_navtitle, "Sessions")
+            surface.draw_text(xtl_x + 12, xtl_y + 60, 210, 210, 210, 255, fonts.hud_navtitle, "Sessions")
         elseif hud.extended.Left.navigation.active[3] then
+            hud.extended.Left.context.itemcount = 0
             hud.extended.Left.context.titlelinewidth:update(globals.frametime(), 0.36, nil)
-            surface.draw_text(xtl_x + 12, xtl_y + 60, 180, 180, 180, 255, fonts.hud_navtitle, "Settings")
+            surface.draw_text(xtl_x + 12, xtl_y + 60, 210, 210, 210, 255, fonts.hud_navtitle, "Settings")
+        end
+        if hud.extended.Left.context.maxitemcount <= hud.extended.Left.context.itemcount then
+            local sbh = (100/(hud.extended.Left.context.itemcount/hud.extended.Left.context.maxitemcount))
+            renderer.rectangle(xtl_x + xtl_w - 14, xtl_y + 90 + (((hud.extended.Left.context.maxitemcount-1)*29)/(data.playlists_local_total-hud.extended.Left.context.maxitemcount))*(scroll_value), 11, 15+sbh, 120, 120, 120, 130)
         end
 
         if intersect(xtl_x, xtl_y+60, xtl_w, xtl_h) and hud.extended.Left.context.maxitemcount <= hud.extended.Left.context.itemcount then
@@ -595,6 +619,7 @@ function draw_hud()
         else
             hud.extended.Left.context.scrolling = false
         end
+
         --end context rendering
 
         if vars.song_image then
@@ -605,7 +630,7 @@ function draw_hud()
         hud.extended.initpercentage:update(globals.frametime(), 0, nil)
     end
     if hud.extended.Left[0] and hud.extended.Right[0] then
-        xtr_x = hud.extended.Right.x:update(globals.frametime(), menu_size[1]+10, nil):get()
+        xtr_x = hud.extended.Right.x:update(globals.frametime(), menu_position[1]+menu_size[1]+10, nil):get()
         xtr_y = hud.extended.Right.y:update(globals.frametime(), menu_position[2], nil):get()
         xtr_w = hud.extended.Right.w:get()
         xtr_h = hud.extended.Right.h:update(globals.frametime(), menu_size[2]+85):get()
@@ -671,15 +696,11 @@ function handle_menu()
 end
 
 function debug()
-    if spotify.authstatus ~= "COMPLETED" then
-        return
-    end
     renderer.text(100,100,255,255,255,255,"+",0,spotify.authstatus())
     renderer.text(100,130,255,255,255,255,"+",0,data.user)
     renderer.text(100,160,255,255,255,255,"+",0,data.song_name)
     renderer.text(100,190,255,255,255,255,"+",0,vars.artist_string)
     renderer.text(100,220,255,255,255,255,"+",0,data.playlists_local_total)
-
 end
 
 client.set_event_callback("paint_ui", function()
