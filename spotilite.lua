@@ -82,7 +82,7 @@ end
 --client.log('optimized: ' .. x .. " self.y: " .. self.y)
 --else client.log('not optimized: ' .. x .. " self.y: " .. self.y)
 function dynamic:update(dt, x, dx)
-   if not x then return end -- stops all the fucking errors wallah`
+   if not x then return end -- stops all the fucking errors wallah
    if self.y == x then return self end --epic
    if dx == nil then
       dx = ( x - self.px ) / dt
@@ -155,8 +155,17 @@ local hud = {
             false,
             x = dynamic.new(8, 2, 1, select(1, ui.menu_position()) + select(1, ui.menu_size()) + 10),
             y = dynamic.new(8, 2, 1, select(2, ui.menu_position())),
-            w = dynamic.new(8, 1, 1, 300),
+            w = dynamic.new(8, 1, 1, 400),
             h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
+
+            playlist = {
+                false,
+                active_data_index,
+                image_data,
+                r =  dynamic.new(2, 0.8, 0.5, 70),
+                g =  dynamic.new(2, 0.8, 0.5, 70),
+                b =  dynamic.new(2, 0.8, 0.5, 70),
+            },
         },
     }
 }
@@ -529,18 +538,19 @@ function draw_hud()
             end
             if intersect(xtl_x+46*i, xtl_y, 45, 40) then 
                 surface.draw_filled_rect(xtl_x+46*i,xtl_y,46,40,50,50,50,gl_opac)
-                hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), 4, nil)
+                surface.draw_filled_rect(xtl_x+46*i,xtl_y+41-hud.extended.Left.navigation.bar_height[i+1]:get(), 46, hud.extended.Left.navigation.bar_height[i+1]:get(),0,255,0,(gl_opac/4)*hud.extended.Left.navigation.bar_height[i+1]:get())
+                hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), 3, nil)
                 navHandler(i)
             else
                 if hud.extended.Left.navigation.active[i] then
                     surface.draw_filled_rect(xtl_x+46*i,xtl_y,46,40,50,50,50,gl_opac)
-                    hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), 4, nil)
+                    hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), 3, nil)
+                    surface.draw_filled_rect(xtl_x+46*i,xtl_y+38,46,3,0,255,0,(gl_opac/4)*hud.extended.Left.navigation.bar_height[i+1]:get())
                 else
-                    hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), -0.3, nil)
+                    hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), -0.1, nil)
+                    surface.draw_filled_rect(xtl_x+46*i,xtl_y+41-hud.extended.Left.navigation.bar_height[i+1]:get(), 46, hud.extended.Left.navigation.bar_height[i+1]:get(),0,255,0,(gl_opac/4)*hud.extended.Left.navigation.bar_height[i+1]:get())
                 end
             end
-
-            surface.draw_filled_rect(xtl_x+46*i,xtl_y+41-hud.extended.Left.navigation.bar_height[i+1]:get(), 46, hud.extended.Left.navigation.bar_height[i+1]:get(),0,255,0,(gl_opac/4)*hud.extended.Left.navigation.bar_height[i+1]:get())
             i = i + 1
         end
         --end navigation
@@ -552,7 +562,6 @@ function draw_hud()
         surface.draw_filled_rect(xtl_x + 10, xtl_y + 80, (xtl_w - 20)*hud.extended.Left.context.titlelinewidth:get(), 1, 70, 70, 70, 255)
         if hud.extended.Left.navigation.active[0] then
             hud.extended.Left.context.itemcount = data.playlists_local_total
-            client.log(round(260/(xtl_h-290)))
             local rm = round(260/(xtl_h-290))
             hud.extended.Left.context.maxitemcount = round(((xtl_h-290)/33))-rm
             surface.draw_text(xtl_x + 12, xtl_y + 60, 210, 210, 210, 255, fonts.hud_navtitle, "Your library")
@@ -571,6 +580,14 @@ function draw_hud()
                                 if not clicked_once then
                                     hud.extended.Right[0] = true
                                     clicked_once = true
+                                    hud.extended.Right.playlist[0] = true
+                                    hud.extended.Right.playlist.active_data_index = scroll_value+item_index
+                                    http.get(data.playlists[scroll_value+item_index].image_url, function(success, response)
+                                        if response.status == 200 then
+                                            hud.extended.Right.playlist.image_data = images.load_jpg(response.body)
+                                        end
+                                    end)
+                                    spotify.get_playlist_data(data.playlists[scroll_value+item_index].uri, 50, 0, false)
                                 end
                             else
                                 surface.draw_text(xtl_x + 12, xtl_y + 70 + (30 * item_index), 230, 230, 230, 255, fonts.hud_playlist, pname)
@@ -598,7 +615,7 @@ function draw_hud()
             hud.extended.Left.context.titlelinewidth:update(globals.frametime(), 0.36, nil)
             surface.draw_text(xtl_x + 12, xtl_y + 60, 210, 210, 210, 255, fonts.hud_navtitle, "Settings")
         end
-        if hud.extended.Left.context.maxitemcount <= hud.extended.Left.context.itemcount then
+        if hud.extended.Left.context.maxitemcount < hud.extended.Left.context.itemcount and hud.extended.Left.context.itemcount ~= nil then
             local sbh = (100/(hud.extended.Left.context.itemcount/hud.extended.Left.context.maxitemcount))
             renderer.rectangle(xtl_x + xtl_w - 14, xtl_y + 90 + (((hud.extended.Left.context.maxitemcount-1)*29)/(data.playlists_local_total-hud.extended.Left.context.maxitemcount))*(scroll_value), 11, 15+sbh, 120, 120, 120, 130)
         end
@@ -625,24 +642,47 @@ function draw_hud()
         if vars.song_image then
             vars.song_image:draw(xtl_x+115+(-110*gl_unfuckedperc),xtl_y+menu_size[2]-(140*(gl_unfuckedperc)),220*gl_unfuckedperc,220*gl_unfuckedperc)
         end
+
+        if hud.extended.Right[0] then
+            xtr_x = hud.extended.Right.x:update(globals.frametime(), menu_position[1]+menu_size[1]+10, nil):get()
+            xtr_y = hud.extended.Right.y:update(globals.frametime(), menu_position[2], nil):get()
+            xtr_w = hud.extended.Right.w:get()
+            xtr_h = hud.extended.Right.h:update(globals.frametime(), menu_size[2]+85):get()
+    
+            surface.draw_filled_rect(xtr_x,xtr_y,xtr_w,xtr_h,26,26,26,255)
+
+            if hud.extended.Right.playlist[0] then
+                local image_r, image_g, image_b = hud.extended.Right.playlist.r:get(), hud.extended.Right.playlist.g:get(), hud.extended.Right.playlist.b:get()
+                local a_index = hud.extended.Right.playlist.active_data_index
+                if data.playlists[a_index].image_colour == nil and data.playlists[a_index].image_colour ~= "IMAGE_ERROR" then
+                    buffer(xtr_x+85, xtr_y+85, 22, 1)
+                elseif data.playlists[a_index].image_colour == "IMAGE_ERROR" then
+                    hud.extended.Right.playlist.r:update(globals.frametime(), 50, nil)
+                    hud.extended.Right.playlist.g:update(globals.frametime(), 50, nil)
+                    hud.extended.Right.playlist.b:update(globals.frametime(), 50, nil)
+                else
+                    hud.extended.Right.playlist.r:update(globals.frametime(), data.playlists[a_index].image_colour[1], nil)
+                    hud.extended.Right.playlist.g:update(globals.frametime(), data.playlists[a_index].image_colour[2], nil)
+                    hud.extended.Right.playlist.b:update(globals.frametime(), data.playlists[a_index].image_colour[3], nil)
+                    hud.extended.Right.playlist.image_data:draw(xtr_x+10,xtr_y+10,150,150)
+                end
+                surface.draw_filled_rect(xtr_x,xtr_y,xtr_w,170,image_r,image_g,image_b,200)
+                surface.draw_filled_gradient_rect(xtr_x,xtr_y,xtr_w,330,image_r,image_g,image_b,255,26,26,26,255, false)
+                surface.draw_filled_rect(xtr_x+6,xtr_y+6,158,158,1,1,1,140)
+                surface.draw_filled_rect(xtr_x+10,xtr_y+10,150,150,0,0,0,80)
+                surface.draw_filled_rect(xtr_x,xtr_y+170,xtr_w,xtr_h-170,20,20,20,240)
+            end
+
+        end
     else
         hud.cover_art_position:update(globals.frametime(), 55, nil)
         hud.extended.initpercentage:update(globals.frametime(), 0, nil)
-    end
-    if hud.extended.Left[0] and hud.extended.Right[0] then
-        xtr_x = hud.extended.Right.x:update(globals.frametime(), menu_position[1]+menu_size[1]+10, nil):get()
-        xtr_y = hud.extended.Right.y:update(globals.frametime(), menu_position[2], nil):get()
-        xtr_w = hud.extended.Right.w:get()
-        xtr_h = hud.extended.Right.h:update(globals.frametime(), menu_size[2]+85):get()
-
-        surface.draw_filled_rect(xtr_x,xtr_y,xtr_w,xtr_h,26,26,26,255)
     end
 end
 
 function navHandler(index)
     if client.key_state(0x01) and not clicked_once then
         clicked_once = true
-        client.log(index)
 
         if index == 4 then
             hud.extended.Left[0] = false
