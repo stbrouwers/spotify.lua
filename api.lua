@@ -1,6 +1,5 @@
 local api = {}
 
-local inspect = require("gamesense/inspect")
 local js = panorama.open()
 local http = require("gamesense/http")
 
