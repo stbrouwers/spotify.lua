@@ -111,6 +111,7 @@ local hud = {
     play_alpha = dynamic.new(2, 1, 1, 0),
     next_alpha = dynamic.new(2, 1, 1, 0),
     back_alpha = dynamic.new(2, 1, 1, 0),
+    volume_width = dynamic.new(2, 1, 1, 2),
     song_name = "", -- so it adapts to menu size bratan kuku bra
     cover_art_position = dynamic.new(4, 1, 1, 55),
     extended = {
@@ -437,23 +438,23 @@ function draw_hud()
     hud_y = hud.y:update(globals.frametime(), menu_position[2] + menu_size[2] + 10, nil):get()
     hud_w = hud.w:update(globals.frametime(), menu_size[1], nil):get()
     hud_h = hud.h:get()
-    surface.draw_filled_rect(hud_x,hud_y,hud_w,hud_h,26,26,26,255)
-    surface.draw_filled_rect(hud_x+10,hud_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
+    surface.draw_filled_rect(hud_x,hud_y,hud_w,hud_h,26,26,26,255) --manu hud background
+    surface.draw_filled_rect(hud_x+10,hud_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255) --draw cover art background for no images (currently useless)
     if not hud.extended.Left[0] then
-        surface.draw_text(hud_x+30, hud_y+20, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
+        surface.draw_text(hud_x+30, hud_y+20, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?") --draws ? if we dont have a valid thumbnail
     end
     if vars.song_image then
-        vars.song_image:draw(hud_x+10,hud_y+10,hud.cover_art_position:get(),55)
+        vars.song_image:draw(hud_x+10,hud_y+10,hud.cover_art_position:get(),55) -- draw thumbnail
     end
     surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+10, 255, 255, 255, 255, fonts.title, data.song_name)
     surface.draw_text(hud_x+15+(hud.cover_art_position:get()*1.15), hud_y+42, 255, 255, 255, 255, fonts.artist, vars.artist_string)
-    surface.draw_filled_gradient_rect(hud_x+390, hud_y, 30, hud_h, 26,26,26,0, 26,26,26,hud.hover_alpha:get(), true)
+    surface.draw_filled_gradient_rect(hud_x+390, hud_y, 30, hud_h, 26,26,26,0, 26,26,26,hud.hover_alpha:get(), true) -- fade out song name on hover
     surface.draw_filled_rect(hud_x+420,hud_y,hud_w-420,hud_h,26,26,26,hud.hover_alpha:get())
     if intersect(hud_x-10,hud_y,hud_w,hud_h) then
         hud.hover_alpha:update(globals.frametime(), 255, nil)
         hud.hover_movement:update(globals.frametime(), 1, nil)
 
-        if not hud.extended.Left[0] then
+        if not hud.extended.Left[0] then -- render circle click thing if we havent extended the side panel
             renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,255, 12, 180, 0.5)
             renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 13, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
             renderer.line(hud_x+12-(hud.hover_movement:get() * 12), hud_y + 27, hud_x+4-(hud.hover_movement:get() * 12), hud_y + 20, 255, 255, 255, 150*hud.hover_movement:get())
@@ -474,6 +475,8 @@ function draw_hud()
             renderer.circle(hud_x+12-(hud.hover_movement:get() * 12), hud_y+20,19,19,19,hud.hover_movement:get()*255, 12, 180, 0.5)
         end
     end
+
+    --render seek bar
     if intersect(hud_x,hud_y+65,hud_w,10) then
         hud.bar_width:update(globals.frametime(), 5, nil)
         hud.bar_length:update(globals.frametime(), (mouse_position[1]-hud_x)/hud_w, nil)
@@ -484,6 +487,8 @@ function draw_hud()
         hud.bar_length:update(globals.frametime(), (data.timestamp / data.duration), nil)
         surface.draw_filled_rect(hud_x,hud_y+75-hud.bar_width:get(),(hud.bar_length:get()*hud_w),hud.bar_width:get(),0,255,0,255)
     end
+
+    --render back pause and skip buttons
     if data.is_playing then
         renderer.text(hud_x+hud_w/2, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.play_alpha:get(),"c+",0,"⏸")
     else
@@ -491,6 +496,7 @@ function draw_hud()
     end
     renderer.text(hud_x+hud_w/2-40, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.back_alpha:get(),"c+",0,"⏮")
     renderer.text(hud_x+hud_w/2+40, hud_y+hud_h/2, 255,255,255,hud.hover_alpha:get()/2+hud.next_alpha:get(),"c+",0,"⏭")
+    -- handle play/pause
     if intersect(hud_x+hud_w/2-5, hud_y+hud_h/2-5, 15, 20) then
         hud.play_alpha:update(globals.frametime(), 127.5, nil)
         hud.back_alpha:update(globals.frametime(), 0, nil)
@@ -499,6 +505,7 @@ function draw_hud()
             spotify.playpause()
             clicked_once = true
         end
+        --handle back button
     elseif intersect(hud_x+hud_w/2-55, hud_y+hud_h/2-5, 30, 20) then
         hud.play_alpha:update(globals.frametime(), 0, nil)
         hud.back_alpha:update(globals.frametime(), 127.5, nil)
@@ -507,6 +514,7 @@ function draw_hud()
             spotify.previous()
             clicked_once = true
         end
+        --handle forward button
     elseif intersect(hud_x+hud_w/2+25, hud_y+hud_h/2-5, 30, 20) then
         hud.play_alpha:update(globals.frametime(), 0, nil)
         hud.back_alpha:update(globals.frametime(), 0, nil)
@@ -522,6 +530,33 @@ function draw_hud()
         hud.back_alpha:update(globals.frametime(), 0, nil)
         hud.next_alpha:update(globals.frametime(), 0, nil)
     end
+
+    --render volume icon and bar
+
+    --these dont fucking work ffs, use svgs mayb
+    if data.current_volume == 0 then
+        renderer.text(hud_x+hud_w-130, hud_y+hud_h/2-2, 255,255,255,255,"c",0,"X")
+    else
+        renderer.text(hud_x+hud_w-130, hud_y+hud_h/2-2, 255,255,255,255,"c",0,"<")
+    end
+    
+    --todo: replace the static 100 lenth with a scalable one and then fix the newVolume calc.
+    surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,100,3,200,200,200,255)
+    if intersect(hud_x+(hud_w-120),hud_y+hud_h/2-5,100,3) then
+        surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,data.current_volume,3,0,255,0,255)
+        renderer.circle(hud_x+(hud_w-120) + data.current_volume, hud_y+hud_h/2-2,255,255,255,255, 5, 0, 1)
+        if client.key_state(0x01) and not is_mouse_pressed then
+            local newVolume = (mouse_position[1] - (hud_x+(hud_w-20))) + 100
+            if not (data.current_volume == newVolume) then spotify.volume(newVolume); data.current_volume = newVolume end
+            is_mouse_pressed = true
+        elseif not client.key_state(0x01) and is_mouse_pressed then
+            is_mouse_pressed = false
+        end
+    else
+        surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,data.current_volume,3,255,255,255,255)
+        renderer.circle(hud_x+(hud_w-120) + data.current_volume, hud_y+hud_h/2-2,255,255,255,255, 5, 0, 1)
+    end
+
 
     xtl_x = hud.extended.Left.x:update(globals.frametime(), menu_position[1]-240, nil):get()
     xtl_y = hud.extended.Left.y:update(globals.frametime(), menu_position[2], nil):get()
@@ -682,6 +717,9 @@ function draw_hud()
                 surface.draw_filled_rect(xtr_x+6,xtr_y+6,158,158,1,1,1,140)
                 surface.draw_filled_rect(xtr_x+10,xtr_y+10,150,150,0,0,0,80)
                 surface.draw_filled_rect(xtr_x,xtr_y+170,xtr_w,xtr_h-170,20,20,20,240)
+                if data.playlists[a_index].is_public then privacy = "PUBLIC" else privacy = "PRIVATE" end
+                surface.draw_text(xtr_x+175, xtr_y+15, 255, 255, 255, 255, fonts.hud.playlist_privacy, privacy.." PLAYLIST")
+                surface.draw_text(xtr_x+175, xtr_y+20, 255, 255, 255, 255, fonts.hud.playlist_title, data.playlists[a_index].name)
             end
 
             if intersect(xtr_x, xtr_y, xtl_w, xtl_h) and hud.extended.Right.context.maxitemcount <= hud.extended.Right.context.itemcount then
