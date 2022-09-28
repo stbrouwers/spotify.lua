@@ -11,11 +11,24 @@ local auth = {
 
 local update = {
     status = "UNINITIALISED",
-    async = false,
+    await = false,
 }
 
 local data = {
-    user,
+    current_user = {
+        id,
+        name,
+        country,
+        image_url,
+        followers
+    },
+    users = {
+        --id,
+        --name,
+        --image_url,
+        --followers,
+        --playlists = {}
+    },
     device_id,
     is_playing,
     song_name,
@@ -32,6 +45,7 @@ local data = {
     playlists = {},
     playlists_user_total,
     playlists_local_total = 0,
+    playlists_cached_total = 0,
     current_volume,
 }
 
@@ -40,16 +54,43 @@ local private_data = {
     playlists_next,
     playlists_tracks_next,
     playlist_exist,
+    user_exist,
+    playlist_data_check,
 }
 
-local function playlist_exists(id)
-    for i = 1, #data.playlists do
-        if data.playlists[i].uri == id then
-            private_data.playlist_exist = i
+local function item_exists(arr, id)
+    for i = 1, #arr do
+        if arr[i].uri == id then
+            if arr == data.playlists then
+                private_data.playlist_exist = i
+                client.log('playlist_exist: ' .. private_data.playlist_exist)
+            elseif arr == data.users then
+                private_data.user_exist = i
+                client.log('user_exist: ' .. private_data.user_exist)
+            else
+                client.log('fuck')
+                return false
+            end
             return true
         end
     end
     return false
+end
+
+local function getcurrentuser()
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
+    http.get("https://api.spotify.com/v1/me", http_options, function(s, r)
+        if r.status == 200 then
+            local jsondata = json.parse(r.body)
+            data.current_user = {
+                uri = jsondata.id,
+                name = jsondata.display_name,
+                country = jsondata.country,
+                image_url = jsondata.images[1].url,
+                followers = jsondata.followers.total
+            }
+        end
+    end)
 end
 
 function api.promptlogin()
@@ -64,6 +105,21 @@ function api.promptlogin()
     js.open_url(url)
     auth.status = "OPENED_BROWSER"
 end
+
+function api.get_user_profile(id)
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
+    http.get("https://api.spotify.com/v1/users/"..id, http_options, function(s, r)
+        if r.status == 200 then
+            local jsondata = json.parse(r.body)
+            data.users = {
+                uri = jsondata.id,
+                name = jsondata.display_name,
+                image_url = jsondata.images[1].url,
+                followers = jsondata.followers.total
+            }
+        end
+    end)
+end 
 
 function api.init(rkey)
     auth.status = "AUTHENTICATING"
@@ -80,11 +136,12 @@ function api.init(rkey)
                 auth.status = "GATHER_PROFILE"
                 if r.body then
                     jsondata = json.parse(r.body)
-                    data.user = jsondata.display_name
+                    data.current_user = jsondata.display_name
                     api.update()
-                    if not data.user then
+                    if not data.current_user then
                         api.init()
                     end
+                    getcurrentuser()
                     auth.status = "PROFILE_SAVED"
                 end
             end)
@@ -98,7 +155,7 @@ function api.update()
     http.get(string.format("https://api.spotify.com/v1/me/player?access_token=%s", auth.access_token), function(s,r)
         if r.status == 200 then
             client.log("Spotify API: Successfully updated")
-            jsondata = json.parse(r.body)
+            local jsondata = json.parse(r.body)
             data.device_id = jsondata.device.id
             data.is_playing = jsondata.is_playing
             data.song_name = jsondata.item.name
@@ -119,7 +176,7 @@ function api.update()
             end
             auth.status = "COMPLETED"
             update.status = "COMPLETED"
-            update.async = true
+            update.await = true
         else
             auth.status = "SONG_FAILURE"
             update.status = "FAILED"
@@ -132,7 +189,7 @@ function api.get_data()
     return data
 end
 
-function api.playpause()
+function api.play_pause()
     local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
 
     if data.is_playing then
@@ -212,69 +269,127 @@ function api.seek(a)
     http.put("https://api.spotify.com/v1/me/player/seek?position_ms=" .. math.floor(a) .. "&device_id=" .. data.device_id, http_options, function(s, r) end)
 end
 
-function api.get_playlist_data(id, l, o, f)
+function api.get_playlist_data(id)
+    if private_data.playlist_data_check ~= id and private_data.playlist_data_check ~= nil then client.log('loop still running, ignored.') return end
+    local p_index
+    local t_id
+    local query
+    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
 
-    if not playlist_exists(id) then
-        local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
-        http.get("https://api.spotify.com/v1/playlists/"..id, http_options, function(s,r)
-            if r.status == 200 then
-                jsondata = json.parse(r.body)
-                data.playlists_user_total = jsondata.total
+    if not item_exists(data.playlists, id) then
+        p_index = data.playlists_local_total+1
+        data.playlists_cached_total = data.playlists_cached_total+1
+        data.playlists[p_index].image_colour = "IMAGE_ERROR"
+        data.playlists_local_total = p_index
+    elseif item_exists(data.playlists, id) then
+        client.log(private_data.playlist_exist)
+        p_index = private_data.playlist_exist
+    end
+
+    if private_data.playlists_tracks_next == nil then
+        query = "https://api.spotify.com/v1/playlists/"..id
+    else
+        query = private_data.playlists_tracks_next
+    end
+
+    http.get(query, http_options, function(s,r)
+        if r.status == 200 then
+            jsondata = json.parse(r.body)
+            t_id = string.gsub(jsondata.uri, "spotify:playlist:", "")
+
+            if private_data.playlists_tracks_next == nil then
 
                 http.post('https://spotify.stbrouwers.cc/image', { headers = { ['Content-Type'] = 'application/json' }, body = json.stringify({url = jsondata.images[1].url}) }, function(s, res)
                     body = json.parse(res.body)
                     if body.color then
                         local r, g ,b = body.color.r, body.color.g, body.color.b
+                        data.playlists[p_index].image_colour = {r, g, b}
                     else
-                        data.playlists[private_data.playlist_exist].image_colour = "IMAGE_ERROR"
+                        data.playlists[p_index].image_colour = "IMAGE_ERROR"
                     end
                 end)
 
-                data.playlists[data.playlists_local_total+1] = {
-                    name = jsondata.items[i].name,
+                data.playlists[p_index] = {
+                    name = jsondata.name,
                     uri = t_id,
-                    image_url = jsondata.items[i].images[1].url,
-                    image_colour = {r, g, b},
+                    owner = {
+                        name = jsondata.owner.display_name,
+                        uri = jsondata.owner.id,
+                    },
+                    is_public = jsondata.public,
+                    is_collaborative = jsondata.collaborative,
+                    image_url = jsondata.images[1].url,
+                    description = jsondata.description,
+                    followers = jsondata.followers.total,
+                    tracks_user_total = jsondata.total,
                     tracks_local_total = 0,
                     tracks = {},
                 }
-                data.playlists_local_total = data.playlists_local_total + 1
 
-                get_playlist_tracks(id, l, o, f)
-            end
-        end)
-    else
-        client.log(private_data.playlist_exist)
-        http.post('https://spotify.stbrouwers.cc/image', { headers = { ['Content-Type'] = 'application/json' }, body = json.stringify({url = data.playlists[private_data.playlist_exist].image_url}) }, function(s, res)
-            image_colour = nil
-            body = json.parse(res.body)
-            if body.color then
-                data.playlists[private_data.playlist_exist].image_colour = {body.color.r, body.color.g, body.color.b}
+                for i = 1, #jsondata.tracks.items do
+                    data.playlists[p_index].tracks = {
+                        uri = jsondata.tracks.items[i].track.id,
+                        name = jsondata.tracks.items[i].track.name,
+                        artists = {jsondata.tracks.items[i].artists},
+                        images = {jsondata.tracks.items[i].track.images},
+                        is_local = jsondata.tracks.items[i].track.is_local,
+                        markets = jsondata.tracks.items[i].track.available_markets,
+                        album = {
+                            uri = jsondata.tracks.items[i].track.album.id,
+                            name = jsondata.tracks.items[i].track.album.name,
+                            artists = {jsondata.tracks.items[i].artists},
+                            images = {jsondata.tracks.items[i].track.album.images},
+                            is_local = jsondata.tracks.items[i].is_local,
+                            markets = jsondata.tracks.items[i].track.available_markets,
+                        }
+                    }
+                    data.playlists[p_index].tracks_local_total = data.playlists[p_index].tracks_local_total + 1
+                end
             else
-                data.playlists[private_data.playlist_exist].image_colour = "IMAGE_ERROR"
+                for i = 1, #jsondata.items do
+                    data.playlists[p_index].tracks = {
+                        uri = jsondata.items[i].track.id,
+                        name = jsondata.items[i].track.name,
+                        artists = {jsondata.items[i].artists},
+                        images = {jsondata.items[i].track.images},
+                        is_local = jsondata.items[i].track.is_local,
+                        markets = jsondata.items[i].track.available_markets,
+                        album = {
+                            uri = jsondata.items[i].track.album.id,
+                            name = jsondata.items[i].track.album.name,
+                            artists = {jsondata.items[i].artists},
+                            images = {jsondata.items[i].track.album.images},
+                            is_local = jsondata.items[i].is_local,
+                            markets = jsondata.items[i].track.available_markets,
+                        }
+                    }
+                    data.playlists[p_index].tracks_local_total = data.playlists[p_index].tracks_local_total + 1
+                end
             end
-        end)
 
-        get_playlist_tracks(id, l, o, f)
-    end
+            client.log(p_index)
+
+            private_data.playlists_tracks_next = jsondata.next
+            if jsondata.next ~= nil then
+                private_data.playlist_data_check = id
+                api.get_playlist_data(id)
+            else
+                private_data.playlist_data_check = nil
+            end
+        end
+    end)
 end
 
-function api.get_user_playlists(l, o, f)
+function api.get_user_playlists()
     local query
     local t_id
     local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token,["Content-length"] = 0}}
     client.log(private_data.playlists_next)
 
-    if f and private_data.playlists_next == "" then
-        data.playlists = {}
-        data.playlists_local_total = 0
-        data.playlists_user_total = 0
-    end
-
-    if f and private_data.playlists_next ~= nil then
+    if private_data.playlists_next ~= nil then
         query = tostring(private_data.playlists_next)
     else
-        query = "https://api.spotify.com/v1/me/playlists?limit=".. l .. "&offset=".. o
+        query = "https://api.spotify.com/v1/me/playlists?limit=".. 10 .. "&offset=".. 0
     end
 
     http.get(query, http_options, function(s,r)
@@ -286,63 +401,35 @@ function api.get_user_playlists(l, o, f)
                 data.playlists[data.playlists_local_total+1] = {
                     name = jsondata.items[i].name,
                     uri = t_id,
+                    owner = {
+                        name = jsondata.items[i].owner.display_name,
+                        uri = jsondata.items[i].owner.id,
+                    },
+                    is_public = jsondata.items[i].public,
+                    is_collaborative = jsondata.items[i].collaborative,
                     image_url = jsondata.items[i].images[1].url,
+                    description = jsondata.items[i].description,
+                    tracks_user_total = jsondata.items[i].tracks.total,
                     tracks_local_total = 0,
                     tracks = {},
                 }
                 data.playlists_local_total = data.playlists_local_total + 1
             end
             private_data.playlists_next = jsondata.next
-            if jsondata.next ~= nil and f then
-                api.get_user_playlists(0, 0, true)
+            if jsondata.next ~= nil then
+                api.get_user_playlists()
             end
         end
     end)
-end
-
-function get_playlist_tracks(id, l, o, f)
-    client.log("get_playlist_tracks" .. id .. " " .. l .. " " .. o .. " " .. tostring(f))
-    local query
-    local http_options = { headers = {["Accept"] = "application/json",["Content-Type"] = "application/json",["Authorization"] = "Bearer " .. auth.access_token, ["Content-length"] = 0}}
-    local parid = playlist_exists(id)
-    if not parid then
-        api.get_playlist_data(id, l, o, f)
-    else
-        if f and private_data.playlists_tracks_next ~= nil then
-            query = tostring(private_data.playlists_tracks_next)
-        else
-            query = "https://api.spotify.com/v1/playlists/".. id .."/tracks?limit=".. l .."&offset=" .. o
-        end
-
-        http.get(query, http_options, function(s,r)
-            if r.status == 200 then
-                jsondata = json.parse(r.body)
-                data.playlists[private_data.playlist_exist].tracks_user_total = jsondata.total
-                for i = 1, #jsondata.items do
-                    data.playlists[private_data.playlist_exist].tracks = {
-                        name = jsondata.items[i].name,
-                        artists = {jsondata.items[i].artists},
-                        id = jsondata.items[i].id
-                    }
-                    data.playlists[private_data.playlist_exist].tracks_local_total = data.playlists[private_data.playlist_exist].tracks_local_total + 1
-                end
-                private_data.playlists_tracks_next = jsondata.next
-                if jsondata.next ~= nil and f then
-                    api.get_playlist_tracks(id, 0, 0, true)
-                end
-            end
-            client.log(r.status)
-        end)
-    end
 end
 
 function api.authstatus()
     return auth.status
 end
 
-function api.updateasync()
-    local x = update.async
-    update.async = false
+function api.update_await()
+    local x = update.await
+    update.await = false
     return x
 end
 
