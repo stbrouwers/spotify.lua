@@ -164,6 +164,7 @@ function api.update()
             data.image_url = jsondata.item.album.images[1].url
             data.duration = jsondata.item.duration_ms
             data.timestamp = jsondata.progress_ms
+            data.current_volume = jsondata.device.volume_percent
 
             if private_data.previous_song_name ~= data.song_name then
                 private_data.previous_song_name = data.song_name
