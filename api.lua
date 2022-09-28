@@ -1,5 +1,6 @@
 local api = {}
 
+local inspect = require("gamesense/inspect")
 local js = panorama.open()
 local http = require("gamesense/http")
 
@@ -398,6 +399,7 @@ function api.get_user_playlists()
             data.playlists_user_total = jsondata.total
             for i = 1, #jsondata.items do
                 t_id = string.gsub(jsondata.items[i].uri, "spotify:playlist:", "")
+                if (#jsondata.items[i].images < 1) then jsondata.items[i].images = {{url = false}, {url = false}} end
                 data.playlists[data.playlists_local_total+1] = {
                     name = jsondata.items[i].name,
                     uri = t_id,
