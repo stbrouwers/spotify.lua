@@ -158,6 +158,16 @@ local hud = {
             w = dynamic.new(8, 1, 1, 400),
             h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
 
+            context = {
+                scrolling = false,
+                scrollvalue = 0,
+                last_analogvalue = 0,
+                scrollmin = 0,
+                scrollmax = 0,
+                itemcount = 0,
+                maxitemcount = 0,
+            },
+
             playlist = {
                 false,
                 active_data_index,
@@ -174,7 +184,8 @@ local hud = {
 function mouse_state.new()
 	return setmetatable({tape = 0, laststate = 0, initd = false, events = {}}, {__index = mouse_state})
 end
-local scrollstate = mouse_state.new()
+local scrollstate_L = mouse_state.new()
+local scrollstate_R = mouse_state.new()
 
 function mouse_state:init()
     if not self.init then
@@ -357,7 +368,7 @@ function update_data()
         if vars.delay < client.unix_time() then
             status, data = pcall(spotify.update) -- i love spotifys images and image library!
             vars.delay = client.unix_time() + 2
-        elseif spotify.updateasync() then
+        elseif spotify.update_await() then
             vars.artist_string = ""
             for i = 1, #data.artists do
                 vars.artist_string = i == #data.artists and vars.artist_string .. data.artists[i].name or vars.artist_string .. data.artists[i].name ..  ", "
@@ -566,7 +577,7 @@ function draw_hud()
             hud.extended.Left.context.maxitemcount = round(((xtl_h-290)/33))-rm
             surface.draw_text(xtl_x + 12, xtl_y + 60, 210, 210, 210, 255, fonts.hud_navtitle, "Your library")
             hud.extended.Left.context.titlelinewidth:update(globals.frametime(), 0.505, nil)
-            if data.playlists_local_total == data.playlists_user_total then
+            if (data.playlists_local_total-data.playlists_cached_total) == data.playlists_user_total then
                 for i = hud.extended.Left.context.maxitemcount, 1, -1 do
                     --client.log(scroll_value .. " scrolli: ".. item_index .." scrollmax: ".. hud.extended.Left.context.maxitemcount .. " local pcount: " .. data.playlists_local_total .. " item_index-scroll_value:" .. item_index+hud.extended.Left.context.scrollvalue)
                     if scroll_value+item_index <= hud.extended.Left.context.itemcount then
@@ -587,7 +598,7 @@ function draw_hud()
                                             hud.extended.Right.playlist.image_data = images.load_jpg(response.body)
                                         end
                                     end)
-                                    spotify.get_playlist_data(data.playlists[scroll_value+item_index].uri, 50, 0, false)
+                                    spotify.get_playlist_data(data.playlists[scroll_value+item_index].uri)
                                 end
                             else
                                 surface.draw_text(xtl_x + 12, xtl_y + 70 + (30 * item_index), 230, 230, 230, 255, fonts.hud_playlist, pname)
@@ -632,7 +643,7 @@ function draw_hud()
             else
                 hud.extended.Left.context.scrollmax = false
             end
-            scrollstate:init()
+            scrollstate_L:init()
         else
             hud.extended.Left.context.scrolling = false
         end
@@ -673,6 +684,22 @@ function draw_hud()
                 surface.draw_filled_rect(xtr_x,xtr_y+170,xtr_w,xtr_h-170,20,20,20,240)
             end
 
+            if intersect(xtr_x, xtr_y, xtl_w, xtl_h) and hud.extended.Right.context.maxitemcount <= hud.extended.Right.context.itemcount then
+                hud.extended.Right.context.scrolling = true
+                if scroll_value <= 0 then
+                    hud.extended.Right.context.scrollmin = true
+                else
+                    hud.extended.Right.context.scrollmin = false
+                end
+                if scroll_value >= (hud.extended.Left.context.itemcount-hud.extended.Left.context.maxitemcount) then
+                    hud.extended.Right.context.scrollmax = true
+                else
+                    hud.extended.Right.context.scrollmax = false
+                end
+                scrollstate_R:init()
+            else
+                hud.extended.Right.context.scrolling = false
+            end
         end
     else
         hud.cover_art_position:update(globals.frametime(), 55, nil)
@@ -691,7 +718,11 @@ function navHandler(index)
         end
 
         if index == 0 then
-            spotify.get_user_playlists(10, 0, true)
+            spotify.get_user_playlists()
+        end
+
+        if index == 3 then
+            
         end
 
         for i = 0, 3 do
