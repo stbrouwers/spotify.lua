@@ -279,9 +279,7 @@ function api.get_playlist_data(id)
 
     if not item_exists(data.playlists, id) then
         p_index = data.playlists_local_total+1
-        data.playlists_cached_total = data.playlists_cached_total+1
-        data.playlists[p_index].image_colour = "IMAGE_ERROR"
-        data.playlists_local_total = p_index
+        data.playlists[p_index].image_colour = "IMAGE_LOADING"
     elseif item_exists(data.playlists, id) then
         client.log(private_data.playlist_exist)
         p_index = private_data.playlist_exist
@@ -293,23 +291,23 @@ function api.get_playlist_data(id)
         query = private_data.playlists_tracks_next
     end
 
-    http.get(query, http_options, function(s,r)
+    http.get(string.format(query), http_options, function(s,r)
         if r.status == 200 then
             jsondata = json.parse(r.body)
-            t_id = string.gsub(jsondata.uri, "spotify:playlist:", "")
 
             if private_data.playlists_tracks_next == nil then
-
-                http.post('https://spotify.stbrouwers.cc/image', { headers = { ['Content-Type'] = 'application/json' }, body = json.stringify({url = jsondata.images[1].url}) }, function(s, res)
-                    body = json.parse(res.body)
-                    if body.color then
-                        local r, g ,b = body.color.r, body.color.g, body.color.b
-                        data.playlists[p_index].image_colour = {r, g, b}
-                    else
-                        data.playlists[p_index].image_colour = "IMAGE_ERROR"
-                    end
-                end)
-
+                t_id = string.gsub(jsondata.uri, "spotify:playlist:", "")
+                if data.playlists[p_index].image_colour == nil or data.playlists[p_index].image_colour == "IMAGE_ERROR" then
+                    http.post('https://spotify.stbrouwers.cc/image', { headers = { ['Content-Type'] = 'application/json' }, body = json.stringify({url = jsondata.images[1].url}) }, function(s, res)
+                        body = json.parse(res.body)
+                        if body.color then
+                            local r, g ,b = body.color.r, body.color.g, body.color.b
+                            data.playlists[p_index].image_colour = {r, g, b}
+                        else
+                            data.playlists[p_index].image_colour = "IMAGE_ERROR"
+                        end
+                    end)
+                end 
                 data.playlists[p_index] = {
                     name = jsondata.name,
                     uri = t_id,
@@ -320,15 +318,20 @@ function api.get_playlist_data(id)
                     is_public = jsondata.public,
                     is_collaborative = jsondata.collaborative,
                     image_url = jsondata.images[1].url,
+                    image_colour = data.playlists[p_index].image_colour,
                     description = jsondata.description,
                     followers = jsondata.followers.total,
-                    tracks_user_total = jsondata.total,
+                    tracks_user_total = jsondata.tracks.total,
                     tracks_local_total = 0,
                     tracks = {},
                 }
+                if private_data.playlist_exist ~= id and not item_exists(data.playlists, id) then
+                    data.playlists_cached_total = data.playlists_cached_total+1
+                    data.playlists_local_total = p_index
+                end
 
                 for i = 1, #jsondata.tracks.items do
-                    data.playlists[p_index].tracks = {
+                    data.playlists[p_index].tracks[data.playlists[p_index].tracks_local_total+1] = {
                         uri = jsondata.tracks.items[i].track.id,
                         name = jsondata.tracks.items[i].track.name,
                         artists = {jsondata.tracks.items[i].artists},
@@ -346,9 +349,10 @@ function api.get_playlist_data(id)
                     }
                     data.playlists[p_index].tracks_local_total = data.playlists[p_index].tracks_local_total + 1
                 end
+                private_data.playlists_tracks_next = jsondata.tracks.next
             else
                 for i = 1, #jsondata.items do
-                    data.playlists[p_index].tracks = {
+                    data.playlists[p_index].tracks[data.playlists[p_index].tracks_local_total+1] = {
                         uri = jsondata.items[i].track.id,
                         name = jsondata.items[i].track.name,
                         artists = {jsondata.items[i].artists},
@@ -366,16 +370,15 @@ function api.get_playlist_data(id)
                     }
                     data.playlists[p_index].tracks_local_total = data.playlists[p_index].tracks_local_total + 1
                 end
+                private_data.playlists_tracks_next = jsondata.next
             end
 
-            client.log(p_index)
-
-            private_data.playlists_tracks_next = jsondata.next
-            if jsondata.next ~= nil then
+            if private_data.playlists_tracks_next ~= nil and data.playlists[p_index].tracks_local_total ~= data.playlists[p_index].tracks_user_total then
                 private_data.playlist_data_check = id
                 api.get_playlist_data(id)
             else
                 private_data.playlist_data_check = nil
+                private_data.playlists_tracks_next = nil
             end
         end
     end)
