@@ -99,6 +99,32 @@ function dynamic:get()
    return self.y
 end
 
+local image = {} -- THE VOICES, THEY ARE SPEAKING TO ME, SEND IMMEDIATE HELP
+
+http.get("https://stbrouwers.cc/images/search.png", function(s,r)
+    if r.body then
+        image.search = images.load_png(r.body)
+    end
+end)
+
+http.get("https://stbrouwers.cc/images/playlist.png", function(s,r)
+    if r.body then
+        image.playlist = images.load_png(r.body)
+    end
+end)
+
+http.get("https://stbrouwers.cc/images/people.png", function(s,r)
+    if r.body then
+        image.people = images.load_png(r.body)
+    end
+end)
+
+http.get("https://stbrouwers.cc/images/settings.png", function(s,r)
+    if r.body then
+        image.settings = images.load_png(r.body)
+    end
+end)
+
 local hud = {
     x = dynamic.new(8, 2, 1, select(1, ui.menu_position())),
     y = dynamic.new(8, 2, 1, select(2, ui.menu_position()) + select(2, ui.menu_size()) + 10),
@@ -111,7 +137,7 @@ local hud = {
     play_alpha = dynamic.new(2, 1, 1, 0),
     next_alpha = dynamic.new(2, 1, 1, 0),
     back_alpha = dynamic.new(2, 1, 1, 0),
-    volume_width = dynamic.new(2, 1, 1, 2),
+    volume_length = dynamic.new(2, 1, 1, 2),
     song_name = "", -- so it adapts to menu size bratan kuku bra
     cover_art_position = dynamic.new(4, 1, 1, 55),
     extended = {
@@ -565,9 +591,10 @@ function draw_hud()
     
     --todo: replace the static 100 lenth with a scalable one and then fix the newVolume calc.
     surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,100,3,200,200,200,255)
-    if intersect(hud_x+(hud_w-120),hud_y+hud_h/2-5,100,3) then
-        surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,data.current_volume,3,0,255,0,255)
-        renderer.circle(hud_x+(hud_w-120) + data.current_volume, hud_y+hud_h/2-2,255,255,255,255, 5, 0, 1)
+    if intersect(hud_x+(hud_w-120),hud_y+hud_h/2-9,100,8) then
+        hud.volume_length:update(globals.frametime(), mouse_position[1]-hud_x-(hud_w-120), nil)
+        surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,hud.volume_length:get(),3,0,255,0,255)
+        renderer.circle(hud_x+(hud_w-120) + hud.volume_length:get(), hud_y+hud_h/2-2,255,255,255,255, 5, 0, 1)
         if client.key_state(0x01) and not is_mouse_pressed then
             local newVolume = (mouse_position[1] - (hud_x+(hud_w-20))) + 100
             if not (data.current_volume == newVolume) then spotify.volume(newVolume); data.current_volume = newVolume end
@@ -576,8 +603,9 @@ function draw_hud()
             is_mouse_pressed = false
         end
     else
-        surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,data.current_volume,3,255,255,255,255)
-        renderer.circle(hud_x+(hud_w-120) + data.current_volume, hud_y+hud_h/2-2,255,255,255,255, 5, 0, 1)
+        hud.volume_length:update(globals.frametime(), data.current_volume, nil)
+        surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,hud.volume_length:get(),3,255,255,255,255)
+        renderer.circle(hud_x+(hud_w-120) + hud.volume_length:get() , hud_y+hud_h/2-2,255,255,255,255, 5, 0, 1)
     end
 
 
@@ -601,7 +629,24 @@ function draw_hud()
 
         --start navigation
         for i = 0, 4 do
-            if i == 4 then
+            if i == 0 then
+                if image.playlist then
+                    image.playlist:draw(xtl_x+46*i+7, xtl_y+4,32,32,200,200,200,200,false)
+                end
+            elseif i == 1 then
+                if image.search then
+                    image.search:draw(xtl_x+46*i+7, xtl_y+6,32,32,200,200,200,200,false)
+                end
+            elseif i == 2 then
+                if image.people then
+                    image.people:draw(xtl_x+46*i+7, xtl_y+4,32,32,200,200,200,200,false)
+                end
+                
+            elseif i == 3 then
+                if image.settings then
+                    image.settings:draw(xtl_x+46*i+9, xtl_y+6,28,28,200,200,200,200,false)
+                end
+            elseif i == 4 then
                 renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, 200, 200, 200, 200)
                 renderer.line(xtl_x+46*i+31, xtl_y + 13, xtl_x+46*i+22, xtl_y + 25, 200, 200, 200, 200)
             end
@@ -654,7 +699,7 @@ function draw_hud()
                                     hud.extended.Right.playlist.active_data_index = scroll_value+item_index
 
                                     hud.extended.Right.playlist.name = pname
-                                    hud.extended.Right.playlist.privacy = data.playlists[scroll_value+item_index].privacy
+                                    hud.extended.Right.playlist.privacy = data.playlists[scroll_value+item_index].is_public
                                     if ppass:len() > 20 then
                                         hud.extended.Right.playlist.titlescale = fonts.hud.playlist_title_small
                                     elseif ppass:len() > 10 then
@@ -761,7 +806,7 @@ function draw_hud()
                 surface.draw_filled_rect(xtr_x+7,xtr_y+7,141,141,1,1,1,140)
                 surface.draw_filled_rect(xtr_x+10,xtr_y+10,135,135,0,0,0,80)
                 surface.draw_filled_rect(xtr_x,xtr_y+156,xtr_w,xtr_h-156,20,20,20,240)
-                surface.draw_text(xtr_x+160, xtr_y+15, 255, 255, 255, 255, fonts.hud.playlist_privacy, hud.extended.Right.playlist.privacy and "PUBLIC PLAYLIST" or "PRIVATE PLAYLIST")
+                surface.draw_text(xtr_x+160, xtr_y+15, 255, 255, 255, 255, fonts.hud.playlist_privacy, hud.extended.Right.playlist.privacy and "PRIVATE PLAYLIST" or "PUBLIC PLAYLIST")
                 surface.draw_text(xtr_x+160, xtr_y+25, 255, 255, 255, 255, hud.extended.Right.playlist.titlescale, hud.extended.Right.playlist.name)
 
                 --Songs
@@ -777,7 +822,7 @@ function draw_hud()
             --scrolling Right
             if hud.extended.Right.context.maxitemcount < hud.extended.Right.context.itemcount and hud.extended.Right.context.itemcount ~= nil then
                 local rbh = (100/(hud.extended.Right.context.itemcount/hud.extended.Right.context.maxitemcount))
-                renderer.rectangle(xtr_x + xtr_w - 14, xtr_y + 90 + (((hud.extended.Right.context.maxitemcount-1)*49)/(data.playlists[r_index].tracks_local_total-hud.extended.Right.context.maxitemcount))*(r_scroll_value), 11, 15+rbh, 120, 120, 120, 130)
+                renderer.rectangle(xtr_x + xtr_w - 14, xtr_y + 162 + (((hud.extended.Right.context.maxitemcount-1)*49)/(data.playlists[r_index].tracks_local_total-hud.extended.Right.context.maxitemcount))*(r_scroll_value), 11, 15+rbh, 120, 120, 120, 130)
             end
 
             if intersect(xtr_x, xtr_y, xtr_w, xtr_h) and hud.extended.Right.context.maxitemcount <= hud.extended.Right.context.itemcount then
