@@ -125,6 +125,12 @@ http.get("https://stbrouwers.cc/images/settings.png", function(s,r)
     end
 end)
 
+http.get("https://stbrouwers.cc/images/volume.png", function(s,r)
+    if r.body then
+        image.volume = images.load_png(r.body)
+    end
+end)
+
 local hud = {
     x = dynamic.new(8, 2, 1, select(1, ui.menu_position())),
     y = dynamic.new(8, 2, 1, select(2, ui.menu_position()) + select(2, ui.menu_size()) + 10),
@@ -401,8 +407,6 @@ local menu = {
     authorization = {
         status = ui.new_label("MISC", "Miscellaneous", "\a1ED760FF> \affffffff UNINITIALISED"),
         authorise = ui.new_button("MISC", "Miscellaneous", "\a1ED760FFAuthorise",  function() auth(CP()) end),
-        reset = ui.new_button("MISC", "Miscellaneous", "\a1ED760FFreset",  function() spotify.reset() end),
-
     },
     options = {
         cover_art = ui.new_checkbox("MISC", "Miscellaneous", "\a1ED760FF> \affffffff Cover art"),
@@ -410,7 +414,8 @@ local menu = {
         background_colour_label = ui.new_label("MISC", "Miscellaneous", "\a1ED760FF> \affffffff Background colour"),
         background_colour = ui.new_color_picker("MISC", "Miscellaneous", "BACKGROUND_COLOUR", 13,13,13,130),
         hud = ui.new_checkbox("MISC", "Miscellaneous", "\a1ED760FF> \affffffff Spotify HUD")
-    }
+    },
+    reset = ui.new_button("MISC", "Miscellaneous", "\a1ED760FFReset",  function() spotify.reset() end),
 }
 
 function update_data()
@@ -582,12 +587,14 @@ function draw_hud()
 
     --render volume icon and bar
 
-    --these dont fucking work ffs, use svgs mayb
-    if data.current_volume == 0 then
+    if image.volume then
+        image.volume:draw(hud_x+hud_w-140, hud_y+hud_h/2-11,18,18,255,255,255,255,false)
+    end
+    --[[if data.current_volume == 0 then
         renderer.text(hud_x+hud_w-130, hud_y+hud_h/2-2, 255,255,255,255,"c",0,"X")
     else
         renderer.text(hud_x+hud_w-130, hud_y+hud_h/2-2, 255,255,255,255,"c",0,"<")
-    end
+    end]]
     
     --todo: replace the static 100 lenth with a scalable one and then fix the newVolume calc.
     surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,100,3,200,200,200,255)
@@ -640,8 +647,7 @@ function draw_hud()
             elseif i == 2 then
                 if image.people then
                     image.people:draw(xtl_x+46*i+7, xtl_y+4,32,32,200,200,200,200,false)
-                end
-                
+                end  
             elseif i == 3 then
                 if image.settings then
                     image.settings:draw(xtl_x+46*i+9, xtl_y+6,28,28,200,200,200,200,false)
@@ -896,6 +902,7 @@ end
 
 function handle_menu()
     ui.set_visible(menu.authorization.authorise, ui.get(menu.enable) and spotify.authstatus() ~= "COMPLETED")
+    ui.set_visible(menu.reset, ui.get(menu.enable))
     ui.set_visible(menu.authorization.status, ui.get(menu.enable))
     for i,v in pairs(menu.options) do
         if i == "background_colour" or i == "background_colour_label" then
