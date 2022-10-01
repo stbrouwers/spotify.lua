@@ -99,38 +99,6 @@ function dynamic:get()
    return self.y
 end
 
-local image = {} -- THE VOICES, THEY ARE SPEAKING TO ME, SEND IMMEDIATE HELP
-
-http.get("https://stbrouwers.cc/images/search.png", function(s,r)
-    if r.body then
-        image.search = images.load_png(r.body)
-    end
-end)
-
-http.get("https://stbrouwers.cc/images/playlist.png", function(s,r)
-    if r.body then
-        image.playlist = images.load_png(r.body)
-    end
-end)
-
-http.get("https://stbrouwers.cc/images/people.png", function(s,r)
-    if r.body then
-        image.people = images.load_png(r.body)
-    end
-end)
-
-http.get("https://stbrouwers.cc/images/settings.png", function(s,r)
-    if r.body then
-        image.settings = images.load_png(r.body)
-    end
-end)
-
-http.get("https://stbrouwers.cc/images/volume.png", function(s,r)
-    if r.body then
-        image.volume = images.load_png(r.body)
-    end
-end)
-
 local hud = {
     x = dynamic.new(8, 2, 1, select(1, ui.menu_position())),
     y = dynamic.new(8, 2, 1, select(2, ui.menu_position()) + select(2, ui.menu_size()) + 10),
@@ -143,7 +111,7 @@ local hud = {
     play_alpha = dynamic.new(2, 1, 1, 0),
     next_alpha = dynamic.new(2, 1, 1, 0),
     back_alpha = dynamic.new(2, 1, 1, 0),
-    volume_length = dynamic.new(2, 1, 1, 2),
+    volume_width = dynamic.new(2, 1, 1, 2),
     song_name = "", -- so it adapts to menu size bratan kuku bra
     cover_art_position = dynamic.new(4, 1, 1, 55),
     extended = {
@@ -372,6 +340,26 @@ local window = {
     cover_art_position = dynamic.new(4, 1, 1, 0),
 }
 
+local loginwindow = {
+    x = dynamic.new(8, 2, 1, select(1, ui.menu_position())+ select(1, ui.menu_size())/2-200),
+    y = dynamic.new(8, 2, 1, select(2, ui.menu_position()) + select(2, ui.menu_size()) - 80),
+    w = dynamic.new(8, 1, 1, 20),
+    h = dynamic.new(2, 1, 1, 75),
+    a = dynamic.new(2, 1, 1, 255),
+    disabled = false,
+    disabling = false,
+    state = "login",
+}
+
+local ui_elements = {
+    fonts = {
+        rounded_btn = surface.create_font("Corbel", 30, 500, 0x010),
+    },
+    rounded_btn = {
+
+    }
+}
+
 local function open_page(page_url) 
     local js = panorama.loadstring([[
         return {
@@ -394,10 +382,13 @@ function auth(rtk)
         client.log(rtk)
         spotify.init(rtk)
         database.write("spotify_refresh_token", rtk)
+        loginwindow.disabling = true
     elseif spotify.authstatus() == "INVALID_TOKEN" then
+        loginwindow.disabling = false
         spotify.reset() 
         spotify.promptlogin()
     else
+        loginwindow.disabling = false
         return
     end 
 end
@@ -407,6 +398,8 @@ local menu = {
     authorization = {
         status = ui.new_label("MISC", "Miscellaneous", "\a1ED760FF> \affffffff UNINITIALISED"),
         authorise = ui.new_button("MISC", "Miscellaneous", "\a1ED760FFAuthorise",  function() auth(CP()) end),
+        reset = ui.new_button("MISC", "Miscellaneous", "\a1ED760FFreset",  function() spotify.reset() end),
+
     },
     options = {
         cover_art = ui.new_checkbox("MISC", "Miscellaneous", "\a1ED760FF> \affffffff Cover art"),
@@ -414,8 +407,7 @@ local menu = {
         background_colour_label = ui.new_label("MISC", "Miscellaneous", "\a1ED760FF> \affffffff Background colour"),
         background_colour = ui.new_color_picker("MISC", "Miscellaneous", "BACKGROUND_COLOUR", 13,13,13,130),
         hud = ui.new_checkbox("MISC", "Miscellaneous", "\a1ED760FF> \affffffff Spotify HUD")
-    },
-    reset = ui.new_button("MISC", "Miscellaneous", "\a1ED760FFReset",  function() spotify.reset() end),
+    }
 }
 
 function update_data()
@@ -447,6 +439,115 @@ function update_data()
         colours.g:update(globals.frametime(), g, nil)
         colours.b:update(globals.frametime(), b, nil)
     end
+end
+--id, x, y, width, height, colour, mouseover, background, text, callback 
+local function draw_rounded_btn(id, x, y, w, h, c, m, b, t, cb, state)
+    if ui_elements[id] == nil then
+        ui_elements[id] = {
+            hover_opacity = dynamic.new(2, 1, 1, 0),
+            scalew = dynamic.new(2, 1, 1, 100),
+            scaleh = dynamic.new(2, 1, 1, 100),
+            font = surface.create_font("Corbel", t[2], t[3], 0x010),
+            font_h = surface.create_font("corbel", t[2]+(m[6]-h), t[3], 0x010),
+        }
+    end
+    local rfix = 0
+
+    if state == "open" then
+        if intersect(x, y, w, h) then
+            m[4] = ui_elements[id].hover_opacity:update(globals.frametime(), m[4], nil):get()
+            scalew = ui_elements[id].scalew:update(globals.frametime(), m[5], nil):get()
+            scaleh = ui_elements[id].scaleh:update(globals.frametime(), m[6], nil):get()
+            if scalew >= m[5]-1 then
+                scalew = m[5]
+                scaleh = m[6]
+            end
+            b[4] = 0
+            if client.key_state(0x01) then
+                scalew = w-8
+                scaleh = h-2
+                if not clicked_once then
+                    clicked_once = true
+                end
+            elseif not client.key_state(0x01) and clicked_once then
+                cb = cb[1](cb[2])
+                clicked_once = false
+            end
+        else
+            if not client.key_state(0x01) and clicked_once then
+                clicked_once = false
+            end
+            m[4] = ui_elements[id].hover_opacity:update(globals.frametime(), 0, nil):get()
+            scalew = ui_elements[id].scalew:update(globals.frametime(), w, nil):get()
+            scaleh = ui_elements[id].scaleh:update(globals.frametime(), h, nil):get()
+            if scalew <= w+1 then
+                scalew = w
+                scaleh = h
+            end
+        end
+    elseif state == "closed" then
+        m[4] = ui_elements[id].hover_opacity:update(globals.frametime(), 0, nil):get()
+        scaleh = ui_elements[id].scaleh:update(globals.frametime(), 0, nil):get()
+        scalew = ui_elements[id].scalew:update(globals.frametime(), w, nil):get()
+        surface.draw_outlined_circle(x, y+(h/2), c[1], c[2], c[3], c[4], h/2, 3*h)
+        surface.draw_outlined_circle(x+w, y+(h/2), c[1], c[2], c[3], c[4], h/2, 3*h)
+        renderer.circle(x, y + h/2, m[1], m[2], m[3], m[4], h/2, 180, 0.5)
+        renderer.circle(x+w, y + h/2, m[1], m[2], m[3], m[4], h/2, 0, 0.5)
+        surface.draw_filled_rect(x, y, w, h, m[1], m[2], m[3], m[4])
+        return
+    end
+    
+    local textsize = {surface.get_text_size(ui_elements[id].font, t[1])}
+    if scalew ~= m[5] then
+        b[4] = 0
+    end
+    m[4] = round(m[4])
+    client.log(m[4]+rfix)
+    x=x-(scalew)/2
+    y=y-(scaleh)/2
+    w=scalew
+    h=scaleh
+
+    --background
+    surface.draw_outlined_circle(x, y+(h/2), c[1], c[2], c[3], c[4], h/2, 3*h)
+    surface.draw_outlined_circle(x+w, y+(h/2), c[1], c[2], c[3], c[4], h/2, 3*h)
+    surface.draw_filled_rect(x, y, w, h, b[1], b[2], b[3], 255)
+    --renderer.circle(x+1, y + h/2, b[1]-7, b[2]-7, b[3]-7, b[4], h/2, 0, 1)
+    --renderer.circle(x+w-1, y + h/2, b[1]-7, b[2]-7, b[3]-7, b[4], h/2, 0, 1)
+
+    --outer
+    surface.draw_line(x, y-1, x + w, y-1, c[1], c[2], c[3], c[4])
+    surface.draw_line(x, y + h, x + w, y + h, c[1], c[2], c[3], c[4])
+
+    renderer.circle(x, y + h/2, m[1], m[2], m[3], m[4], h/2, 180, 0.5)
+    renderer.circle(x+w, y + h/2, m[1], m[2], m[3], m[4], h/2, 0, 0.5)
+    surface.draw_filled_rect(x, y, w, h, m[1], m[2], m[3], m[4])
+    surface.draw_text(x+w/2-textsize[1]/2, y+h/2-textsize[2]/2, 255, 255, 255, 255, ui_elements[id].font, t[1])
+end
+
+local function draw_login_window()
+    local mx, my = ui.menu_position()
+    local mw, mh = ui.menu_size()
+    local x, y, w, h, a = loginwindow.x:get(), loginwindow.y:get(), loginwindow.w:get(), loginwindow.h:get(), round(loginwindow.a:get())
+
+    if loginwindow.state == "login" then
+        client.log("login")
+        ux, uy, uw, uh, ua = (mx+(mw/2))-140, my+mh+10, 280, 75, 255
+    end
+
+    surface.draw_filled_rect(x, y, w, h, 26, 26, 26, a)
+    --id, x, y, width, height, colour, mouseover{r, g ,b, a, onclick a, scalew, scaleh}, background, text{text, size, weight},callback\
+    if loginwindow.disabling then
+        draw_rounded_btn("loginbtn",x+(w/2), y+40, 100, 32, {30, 215, 96, 255}, {30, 215, 96, 255, 100, 32}, {26,26,26,255}, {"login", 22, 300}, {auth, CP()}, "closed")
+    else
+        draw_rounded_btn("loginbtn",x+(w/2), y+40, 100, 32, {30, 215, 96, 255}, {30, 215, 96, 255, 100, 32}, {26,26,26,255}, {"login", 22, 300}, {auth, CP()}, "open")
+    end
+
+    loginwindow.x:update(globals.frametime(), ux, nil)
+    loginwindow.y:update(globals.frametime(), uy, nil)
+    loginwindow.w:update(globals.frametime(), uw, nil)
+    loginwindow.h:update(globals.frametime(), uh, nil)
+    loginwindow.a:update(globals.frametime(), ua, nil)
 end
 
 function draw_spotify_window()
@@ -587,21 +688,18 @@ function draw_hud()
 
     --render volume icon and bar
 
-    if image.volume then
-        image.volume:draw(hud_x+hud_w-140, hud_y+hud_h/2-11,18,18,255,255,255,255,false)
-    end
-    --[[if data.current_volume == 0 then
+    --these dont fucking work ffs, use svgs mayb
+    if data.current_volume == 0 then
         renderer.text(hud_x+hud_w-130, hud_y+hud_h/2-2, 255,255,255,255,"c",0,"X")
     else
         renderer.text(hud_x+hud_w-130, hud_y+hud_h/2-2, 255,255,255,255,"c",0,"<")
-    end]]
+    end
     
     --todo: replace the static 100 lenth with a scalable one and then fix the newVolume calc.
     surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,100,3,200,200,200,255)
-    if intersect(hud_x+(hud_w-120),hud_y+hud_h/2-9,100,8) then
-        hud.volume_length:update(globals.frametime(), mouse_position[1]-hud_x-(hud_w-120), nil)
-        surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,hud.volume_length:get(),3,0,255,0,255)
-        renderer.circle(hud_x+(hud_w-120) + hud.volume_length:get(), hud_y+hud_h/2-2,255,255,255,255, 5, 0, 1)
+    if intersect(hud_x+(hud_w-120),hud_y+hud_h/2-5,100,3) then
+        surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,data.current_volume,3,0,255,0,255)
+        renderer.circle(hud_x+(hud_w-120) + data.current_volume, hud_y+hud_h/2-2,255,255,255,255, 5, 0, 1)
         if client.key_state(0x01) and not is_mouse_pressed then
             local newVolume = (mouse_position[1] - (hud_x+(hud_w-20))) + 100
             if not (data.current_volume == newVolume) then spotify.volume(newVolume); data.current_volume = newVolume end
@@ -610,9 +708,8 @@ function draw_hud()
             is_mouse_pressed = false
         end
     else
-        hud.volume_length:update(globals.frametime(), data.current_volume, nil)
-        surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,hud.volume_length:get(),3,255,255,255,255)
-        renderer.circle(hud_x+(hud_w-120) + hud.volume_length:get() , hud_y+hud_h/2-2,255,255,255,255, 5, 0, 1)
+        surface.draw_filled_rect(hud_x+(hud_w-120),hud_y+hud_h/2-3,data.current_volume,3,255,255,255,255)
+        renderer.circle(hud_x+(hud_w-120) + data.current_volume, hud_y+hud_h/2-2,255,255,255,255, 5, 0, 1)
     end
 
 
@@ -636,23 +733,7 @@ function draw_hud()
 
         --start navigation
         for i = 0, 4 do
-            if i == 0 then
-                if image.playlist then
-                    image.playlist:draw(xtl_x+46*i+7, xtl_y+4,32,32,200,200,200,200,false)
-                end
-            elseif i == 1 then
-                if image.search then
-                    image.search:draw(xtl_x+46*i+7, xtl_y+6,32,32,200,200,200,200,false)
-                end
-            elseif i == 2 then
-                if image.people then
-                    image.people:draw(xtl_x+46*i+7, xtl_y+4,32,32,200,200,200,200,false)
-                end  
-            elseif i == 3 then
-                if image.settings then
-                    image.settings:draw(xtl_x+46*i+9, xtl_y+6,28,28,200,200,200,200,false)
-                end
-            elseif i == 4 then
+            if i == 4 then
                 renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, 200, 200, 200, 200)
                 renderer.line(xtl_x+46*i+31, xtl_y + 13, xtl_x+46*i+22, xtl_y + 25, 200, 200, 200, 200)
             end
@@ -705,7 +786,7 @@ function draw_hud()
                                     hud.extended.Right.playlist.active_data_index = scroll_value+item_index
 
                                     hud.extended.Right.playlist.name = pname
-                                    hud.extended.Right.playlist.privacy = data.playlists[scroll_value+item_index].is_public
+                                    hud.extended.Right.playlist.privacy = data.playlists[scroll_value+item_index].privacy
                                     if ppass:len() > 20 then
                                         hud.extended.Right.playlist.titlescale = fonts.hud.playlist_title_small
                                     elseif ppass:len() > 10 then
@@ -812,7 +893,7 @@ function draw_hud()
                 surface.draw_filled_rect(xtr_x+7,xtr_y+7,141,141,1,1,1,140)
                 surface.draw_filled_rect(xtr_x+10,xtr_y+10,135,135,0,0,0,80)
                 surface.draw_filled_rect(xtr_x,xtr_y+156,xtr_w,xtr_h-156,20,20,20,240)
-                surface.draw_text(xtr_x+160, xtr_y+15, 255, 255, 255, 255, fonts.hud.playlist_privacy, hud.extended.Right.playlist.privacy and "PRIVATE PLAYLIST" or "PUBLIC PLAYLIST")
+                surface.draw_text(xtr_x+160, xtr_y+15, 255, 255, 255, 255, fonts.hud.playlist_privacy, hud.extended.Right.playlist.privacy and "PUBLIC PLAYLIST" or "PRIVATE PLAYLIST")
                 surface.draw_text(xtr_x+160, xtr_y+25, 255, 255, 255, 255, hud.extended.Right.playlist.titlescale, hud.extended.Right.playlist.name)
 
                 --Songs
@@ -828,7 +909,7 @@ function draw_hud()
             --scrolling Right
             if hud.extended.Right.context.maxitemcount < hud.extended.Right.context.itemcount and hud.extended.Right.context.itemcount ~= nil then
                 local rbh = (100/(hud.extended.Right.context.itemcount/hud.extended.Right.context.maxitemcount))
-                renderer.rectangle(xtr_x + xtr_w - 14, xtr_y + 162 + (((hud.extended.Right.context.maxitemcount-1)*49)/(data.playlists[r_index].tracks_local_total-hud.extended.Right.context.maxitemcount))*(r_scroll_value), 11, 15+rbh, 120, 120, 120, 130)
+                renderer.rectangle(xtr_x + xtr_w - 14, xtr_y + 90 + (((hud.extended.Right.context.maxitemcount-1)*49)/(data.playlists[r_index].tracks_local_total-hud.extended.Right.context.maxitemcount))*(r_scroll_value), 11, 15+rbh, 120, 120, 120, 130)
             end
 
             if intersect(xtr_x, xtr_y, xtr_w, xtr_h) and hud.extended.Right.context.maxitemcount <= hud.extended.Right.context.itemcount then
@@ -902,7 +983,6 @@ end
 
 function handle_menu()
     ui.set_visible(menu.authorization.authorise, ui.get(menu.enable) and spotify.authstatus() ~= "COMPLETED")
-    ui.set_visible(menu.reset, ui.get(menu.enable))
     ui.set_visible(menu.authorization.status, ui.get(menu.enable))
     for i,v in pairs(menu.options) do
         if i == "background_colour" or i == "background_colour_label" then
@@ -924,7 +1004,7 @@ end
 
 client.set_event_callback("paint_ui", function()
     handle_menu()
-    if spotify.authstatus() == "COMPLETED" and ui.get(menu.enable) then 
+    if spotify.authstatus() == "COMPLETED" and ui.get(menu.enable) and loginwindow.disabled then 
         update_data()
         if vars.total_updates ~= 0 then
             debug()
@@ -936,6 +1016,11 @@ client.set_event_callback("paint_ui", function()
                 --_, __ = pcall(draw_hud)
                 seek()
             end
+        end
+    elseif ui.get(menu.enable) then
+        draw_login_window()
+        if disabling and spotify.authstatus() == "OPENED_BROWSER" or disabling and spotify.authstatus() == "INVALID_TOKEN" then
+            disabling = false
         end
     end
 end)
