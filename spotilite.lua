@@ -225,7 +225,6 @@ local scrollstate_L = mouse_state.new()
 local scrollstate_R = mouse_state.new()
 
 function mouse_state:check(autism)
-    client.log(inspect(self))
     if not self.init then
         self.tape = 0
         self.laststate = GetAnalogDelta(inputsystem, 0x03)
@@ -636,27 +635,30 @@ function draw_hud()
 
         --start navigation
         for i = 0, 4 do
+            local i_h = round(hud.extended.Left.navigation.bar_height[i+1]:get())/2
+            local i_o = 200+round(35)*i_h
+            client.log(i_h)
             if i == 0 then
                 if image.playlist then
-                    image.playlist:draw(xtl_x+46*i+7, xtl_y+4,32,32,200,200,200,200,false)
+                    image.playlist:draw(xtl_x+46*i+7, xtl_y+4-i_h,32,32,i_o,i_o,i_o,i_o,false)
                 end
             elseif i == 1 then
                 if image.search then
-                    image.search:draw(xtl_x+46*i+7, xtl_y+6,32,32,200,200,200,200,false)
+                    image.search:draw(xtl_x+46*i+10, xtl_y+8-i_h,26,26,i_o,i_o,i_o,i_o,false)
                 end
             elseif i == 2 then
                 if image.people then
-                    image.people:draw(xtl_x+46*i+7, xtl_y+4,32,32,200,200,200,200,false)
+                    image.people:draw(xtl_x+46*i+8, xtl_y+5-i_h,30,30,i_o,i_o,i_o,i_o,false)
                 end  
             elseif i == 3 then
                 if image.settings then
-                    image.settings:draw(xtl_x+46*i+9, xtl_y+6,28,28,200,200,200,200,false)
+                    image.settings:draw(xtl_x+46*i+12, xtl_y+9-i_h,22,22,i_o,i_o,i_o,i_o,false)
                 end
             elseif i == 4 then
-                renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, 200, 200, 200, 200)
-                renderer.line(xtl_x+46*i+31, xtl_y + 13, xtl_x+46*i+22, xtl_y + 25, 200, 200, 200, 200)
+                renderer.line(xtl_x+46*i+13, xtl_y + 13, xtl_x+46*i+23, xtl_y + 25, i_o, i_o, i_o, i_o)
+                renderer.line(xtl_x+46*i+31, xtl_y + 13, xtl_x+46*i+22, xtl_y + 25, i_o, i_o, i_o, i_o)
             end
-            if intersect(xtl_x+46*i, xtl_y, 45, 40) then 
+            if intersect(xtl_x+46*i, xtl_y, 45, 40) then
                 surface.draw_filled_rect(xtl_x+46*i,xtl_y,46,40,50,50,50,gl_opac)
                 surface.draw_filled_rect(xtl_x+46*i,xtl_y+41-hud.extended.Left.navigation.bar_height[i+1]:get(), 46, hud.extended.Left.navigation.bar_height[i+1]:get(),0,255,0,(gl_opac/4)*hud.extended.Left.navigation.bar_height[i+1]:get())
                 hud.extended.Left.navigation.bar_height[i+1]:update(globals.frametime(), 3, nil)
