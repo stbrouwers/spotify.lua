@@ -190,6 +190,7 @@ local hud = {
             y = dynamic.new(8, 2, 1, select(2, ui.menu_position())),
             w = dynamic.new(8, 1, 1, 400),
             h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
+            close = dynamic.new(2, 1, 1, 150),
 
             context = {
                 scrolling = false,
@@ -390,7 +391,7 @@ end
 
 function auth(rtk)
     if spotify.authstatus() == "UNINITIALISED" or spotify.authstatus() == "OPENED_BROWSER" then
-        client.log(rtk)
+        --client.log(rtk)
         spotify.init(rtk)
         database.write("spotify_refresh_token", rtk)
     elseif spotify.authstatus() == "INVALID_TOKEN" then
@@ -462,7 +463,7 @@ function draw_spotify_window()
     surface.draw_filled_rect(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50,26,26,26,255)
     surface.draw_text(window_x+window.cover_art_position:get()/2-1, window_y+15, 130, 130, 130, 255, fonts.title, window.cover_art_position:get() < 1 and "" or "?")
     if vars.song_image then
-        vars.song_image:draw(window_x+5,window_y+5,math.floor(window.cover_art_position:get()),50)
+        vars.song_image:draw(window_x+5,window_y+5,math.floor(window.cover_art_position:get() or 0),50)
     end
     if intersect(window_x, window_y, window.w, window.h) and client.key_state(0x01) then
         window.moving = true
@@ -637,7 +638,7 @@ function draw_hud()
         for i = 0, 4 do
             local i_h = round(hud.extended.Left.navigation.bar_height[i+1]:get())/2
             local i_o = 200+round(35)*i_h
-            client.log(i_h)
+            --client.log(i_h)
             if i == 0 then
                 if image.playlist then
                     image.playlist:draw(xtl_x+46*i+7, xtl_y+4-i_h,32,32,i_o,i_o,i_o,i_o,false)
@@ -816,6 +817,17 @@ function draw_hud()
                 surface.draw_filled_rect(xtr_x,xtr_y+156,xtr_w,xtr_h-156,20,20,20,240)
                 surface.draw_text(xtr_x+160, xtr_y+15, 255, 255, 255, 255, fonts.hud.playlist_privacy, hud.extended.Right.playlist.privacy and "PRIVATE PLAYLIST" or "PUBLIC PLAYLIST")
                 surface.draw_text(xtr_x+160, xtr_y+25, 255, 255, 255, 255, hud.extended.Right.playlist.titlescale, hud.extended.Right.playlist.name)
+                if intersect(xtr_x+xtr_w-50, xtr_y, 50,25) then
+                    hud.extended.Right.close:update(globals.frametime(), 190, nil)
+                    if client.key_state(0x01) then
+                        hud.extended.Right[0] = false
+                    end
+                else
+                    hud.extended.Right.close:update(globals.frametime(), 150, nil)
+                end
+                surface.draw_filled_rect(xtr_x+xtr_w-50, xtr_y, 50,25,13,13,13,hud.extended.Right.close:get())
+                renderer.line(xtr_x+xtr_w-30, xtr_y+8, xtr_x+xtr_w-20, xtr_y+17, 255,255,255,65+hud.extended.Right.close:get())
+                renderer.line(xtr_x+xtr_w-20, xtr_y+8, xtr_x+xtr_w-30, xtr_y+17, 255,255,255,65+hud.extended.Right.close:get())
 
                 --Songs
                 if data.playlists[r_index].tracks_local_total == data.playlists[r_index].tracks_user_total then
@@ -929,7 +941,7 @@ client.set_event_callback("paint_ui", function()
     if spotify.authstatus() == "COMPLETED" and ui.get(menu.enable) then 
         update_data()
         if vars.total_updates ~= 0 then
-            debug()
+            --debug()
             draw_spotify_window()
             --_, __ = pcall(draw_spotify_window)
 
@@ -940,11 +952,7 @@ client.set_event_callback("paint_ui", function()
             end
         end
     end
-end)
-
-client.set_event_callback("shutdown", function()
-    database.write("spotify_x", window.x:get())
-    database.write("spotify_y", window.y:get())
+    -- IF (I_CAN_HEAR_THE_VOICES) THEN RUN();RUN();RUN();RUN() END
 end)
 
 client.set_event_callback("shutdown", function()
