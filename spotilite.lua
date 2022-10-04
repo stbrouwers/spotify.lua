@@ -209,6 +209,8 @@ local hud = {
                 false,
                 active_data_index,
                 image_data,
+                preview_data = {},
+                preview_data_total = 0,
                 name,
                 titlescale,
                 titlescaleint,
@@ -220,6 +222,7 @@ local hud = {
         },
     }
 }
+
 
 --start scrollwheel
 function mouse_state.new()
@@ -336,7 +339,7 @@ local authentication = {
     refresh_token = database.read("spotify_refresh_token") or "",
 }
 
-local data = {}
+local data = spotify.get_data()
 
 local fonts = {
     title = surface.create_font("Corbel", 30, 700, 0x010),
@@ -350,6 +353,7 @@ local fonts = {
         playlist_title_medium = surface.create_font("Corbel", 36, 700, 0x010),
         playlist_title_small = surface.create_font("Corbel", 24, 700, 0x010),
         playlist_title_scroll = surface.create_font("Corbel", 32, 700, 0x010),
+        playlist_top_index_bar = surface.create_font("Corbel", 24, 300, 0x010),
     }
 }
 
@@ -391,6 +395,29 @@ local function intersect(x, y, w, h, d)
     if d then surface.draw_filled_rect(x, y, w, h, 255, 0, 0, 50) end
     local mousepos = { ui.mouse_position() }
     return mousepos[1] >= x and mousepos[1] <= x + w and mousepos[2] >= y and mousepos[2] <= y + h
+end
+
+local function pimage_previews_load(id)
+    hud.extended.Right.playlist.preview_data = {}
+    hud.extended.Right.playlist.preview_data_total = 0
+    for i = 1, #data.playlists[id].tracks do
+        client.log(inspect(data.playlists[id].tracks[i].images.small))
+        if data.playlists[id].tracks[i].images.small ~= nil then
+            http.get(data.playlists[id].tracks[i].images.small, function(success, response)
+                if response.status == 200 then
+                    hud.extended.Right.playlist.preview_data[i] = {images.load_jpg(response.body)}
+                    client.log("loaded img "..data.playlists[id].tracks[i].name)
+                else
+                    hud.extended.Right.playlist.preview_data[i] = {"NO_IMAGE"}
+                    client.log("request error img "..data.playlists[id].tracks[i].name)
+                end
+            end)
+        else
+            hud.extended.Right.playlist.preview_data[i] = {"NO_IMAGE"}
+            client.log("nil error img "..data.playlists[id].tracks[i].name)
+        end
+        hud.extended.Right.playlist.preview_data_total = hud.extended.Right.playlist.preview_data_total+1
+    end
 end
 
 function auth(rtk)
@@ -730,7 +757,9 @@ function draw_hud()
                                         end
                                     end)
                                     spotify.get_playlist_data(data.playlists[scroll_value+item_index].uri)
+                                    pimage_previews_load(scroll_value+item_index)
                                     hud.extended.Right.context.scrollvalue = 0
+                    
                                 end
                             else
                                 surface.draw_text(xtl_x + 12, xtl_y + 70 + (30 * item_index), 230, 230, 230, 255, fonts.hud.playlist, pname)
@@ -804,8 +833,8 @@ function draw_hud()
                 local top_opacity_in
                 local top_opacity_out
                 r_index = hud.extended.Right.playlist.active_data_index
-                hud.extended.Right.context.itemcount = data.playlists[r_index].tracks_local_total+1
-                hud.extended.Right.context.maxitemcount = round(((xtr_h-top_bar_height)/50))-rrm
+                hud.extended.Right.context.itemcount = data.playlists[r_index].tracks_local_total
+                hud.extended.Right.context.maxitemcount = round(((xtr_h-top_bar_height)/50))
 
                 if r_scroll_value == 0 then
                     top_height = round(hud.extended.Right.context.top_height:update(globals.frametime(), 156, nil):get())
@@ -813,7 +842,7 @@ function draw_hud()
                     top_opacity_out = round(hud.extended.Right.context.top_opacity_out:update(globals.frametime(), 0, nil):get())
                     top_font_size = hud.extended.Right.playlist.titlescale
                 else
-                    top_height = round(hud.extended.Right.context.top_height:update(globals.frametime(), 50, nil):get())
+                    top_height = round(hud.extended.Right.context.top_height:update(globals.frametime(), 60, nil):get())
                     top_opacity_in = round(hud.extended.Right.context.top_opacity_in:update(globals.frametime(), 0, nil):get())
                     top_opacity_out = round(hud.extended.Right.context.top_opacity_out:update(globals.frametime(), 100, nil):get())
                     if top_opacity_out == 100 then
@@ -842,22 +871,34 @@ function draw_hud()
                 surface.draw_filled_rect(xtr_x+10,xtr_y+10,(135/100)*top_opacity_in,(135/100)*top_opacity_in,0,0,0,(80/100)*top_opacity_in)
                 surface.draw_filled_rect(xtr_x,xtr_y+top_height,xtr_w,xtr_h-top_height,20,20,20,240)
                 surface.draw_text(xtr_x+160, xtr_y+15, 255, 255, 255, (255/100)*top_opacity_in, fonts.hud.playlist_privacy, hud.extended.Right.playlist.privacy and "PRIVATE PLAYLIST" or "PUBLIC PLAYLIST")
-                surface.draw_text(xtr_x+160-(103/100)*top_opacity_out, xtr_y+25-(17/100)*top_opacity_out, 255, 255, 255, 255, top_font_size, hud.extended.Right.playlist.name)
+                surface.draw_text(xtr_x+160-(95/100)*top_opacity_out, xtr_y+25-(13/100)*top_opacity_out, 255, 255, 255, 255, top_font_size, hud.extended.Right.playlist.name)
 
                 --scroll > 0
                 --surface.draw_text(xtr_x+57, xtr_y+7, 255, 255, 255, (255/100)*top_opacity_out, fonts.hud.playlist_title_scroll, hud.extended.Right.playlist.name)
-                
-
+                if r_scroll_value ~= 0 then
+                    surface.draw_filled_rect(xtr_x, xtr_y+top_height, xtr_w, 33, 26,26,26,(255/100)*top_opacity_out)
+                end
+                surface.draw_text(xtr_x+20, xtr_y+top_height+4, 150, 150, 150, 255, fonts.hud.playlist_top_index_bar, "#")
+                surface.draw_line(xtr_x, xtr_y+top_height+33, xtr_x+xtr_w, xtr_y+top_height+33,45,45,45,255)
                 --Songs
-                if data.playlists[r_index].tracks_local_total == data.playlists[r_index].tracks_user_total then
-                    for i = 1, #data.playlists[r_index].tracks do
-                        
+                if data.playlists[r_index].tracks_local_total == data.playlists[r_index].tracks_user_total and data.playlists[r_index].tracks_local_total == hud.extended.Right.playlist.preview_data_total then
+                    --client.log(r_scroll_value+r_item_index)
+                    for i = hud.extended.Right.context.maxitemcount, 1,-1 do
+                        local imgdata 
+                        if r_scroll_value+r_item_index <= hud.extended.Right.context.itemcount then
+                            surface.draw_text(xtr_x+5, xtr_y+top_bar_height+33+(30*(r_item_index-1)), 255, 255, 255, 255, fonts.hud.playlist_privacy, tostring(r_scroll_value+r_item_index))
+                            if hud.extended.Right.playlist.preview_data[2] ~= "NO_IMAGE" and hud.extended.Right.playlist.preview_data[1] ~= nil then
+                                --hud.extended.Right.playlist.preview_data[2]:draw(xtr_x+10,xtr_y+top_bar_height+33+(30*(r_item_index-1)),30,30, nil, nil, nil, nil, false)
+                            end
+                            surface.draw_text(xtr_x+89, xtr_y+top_bar_height+33+(30*(r_item_index-1)), 255, 255, 255, 255, fonts.hud.playlist_privacy, data.playlists[r_index].tracks[r_scroll_value+r_item_index].name)
+                            r_item_index = r_item_index + 1
+                        end
                     end
                 else
                     buffer(xtr_x+(xtr_w/2), xtr_y+((xtr_h+156)/2), 30, 1)
                 end
+                r_item_index = 1
             end
-            
             --scrolling Right
             if hud.extended.Right.context.maxitemcount < hud.extended.Right.context.itemcount and hud.extended.Right.context.itemcount ~= nil then
                 local rbh = (100/(hud.extended.Right.context.itemcount/hud.extended.Right.context.maxitemcount))
@@ -871,7 +912,7 @@ function draw_hud()
                 else
                     hud.extended.Right.context.scrollmin = false
                 end
-                if r_scroll_value >= (hud.extended.Left.context.itemcount-hud.extended.Left.context.maxitemcount) then
+                if r_scroll_value >= (hud.extended.Right.context.itemcount-hud.extended.Right.context.maxitemcount) then
                     hud.extended.Right.context.scrollmax = true
                 else
                     hud.extended.Right.context.scrollmax = false
@@ -964,11 +1005,21 @@ function debug()
     renderer.text(100,130,255,255,255,255,"+",0,data.current_user.name)
     renderer.text(100,160,255,255,255,255,"+",0,data.song_name)
     renderer.text(100,190,255,255,255,255,"+",0,vars.artist_string)
-    renderer.text(100,220,255,255,255,255,"+",0,data.playlists_local_total)
+    renderer.text(100,220,255,255,255,255,"+",0,data.playlists_local_total .. " ~ " .. data.playlists_user_total .. " cached " .. data.playlists_cached_total)
+    if hud.extended.Right.playlist.active_data_index ~= nil then
+        renderer.text(100,250,255,255,255,255,"+",0,hud.extended.Right.playlist.active_data_index)
+        renderer.text(100, 280,255,255,255,255,"+",0,data.playlists[hud.extended.Right.playlist.active_data_index].tracks_local_total.. " ~ " ..data.playlists[hud.extended.Right.playlist.active_data_index].tracks_user_total)
+        renderer.text(100, 310,255,255,255,255,"+",0,hud.extended.Right.playlist.preview_data_total)
+    else
+        renderer.text(100,250,255,255,255,255,"+",0,"none")
+        renderer.text(100, 280,255,255,255,255,"+",0,"0")
+    end
+
 end
 
 client.set_event_callback("paint_ui", function()
     handle_menu()
+    data = spotify.get_data()
     if spotify.authstatus() == "COMPLETED" and ui.get(menu.enable) then 
         update_data()
         if vars.total_updates ~= 0 then
