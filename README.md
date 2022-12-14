@@ -1,4 +1,4 @@
-# Spotify LUA Recoded Edition \[NOW PRIVATE!!!!!]
+# Spotify LUA Recoded Edition \[NOW EPIC!!!!!]
 ## spotify player for gamesense and neverlose!
 
 ![Art](https://i.imgur.com/qzr0u33.png)
