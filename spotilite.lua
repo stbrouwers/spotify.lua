@@ -158,7 +158,7 @@ local hud = {
             h = dynamic.new(2, 1, 1, select(2, ui.menu_size())+85),
 
             navigation = {
-                bar_height = {
+                bar_height = {  
                     dynamic.new(2, 1, 1, -0.3),
                     dynamic.new(2, 1, 1, -0.3),
                     dynamic.new(2, 1, 1, -0.3),
@@ -182,6 +182,11 @@ local hud = {
                 itemcount = 0,
                 maxitemcount = 0,
                 titlelinewidth = dynamic.new(2, 1, 1, 0),
+            },
+
+            settings = {    
+                box_settings_opened = false,
+                cover_art = false
             },
         },
         Right = {
@@ -346,6 +351,8 @@ local fonts = {
     artist = surface.create_font("Corbel", 16, 200, 0x010),
     hud = {
         navtitle = surface.create_font("Corbel", 25, 700, 0x010),
+        settingparent = surface.create_font("Corbel", 25, 500, 0x010),
+        settingchild = surface.create_font("Corbel", 22, 300, 0x010),
         playlist = surface.create_font("Corbel", 22, 300, 0x010),
 
         playlist_privacy = surface.create_font("Corbel", 17, 700, 0x010),
@@ -488,7 +495,7 @@ end
 
 function draw_spotify_window()
     local r, g, b = colours.r:get(), colours.g:get(), colours.b:get()
-    window.cover_art_position:update(globals.frametime(), ui.get(menu.options.cover_art) and 50 or 0, nil)
+    window.cover_art_position:update(globals.frametime(), hud.extended.Left.settings.cover_art and 50 or 0, nil)
     data.song_size = surface.get_text_size(fonts.title, data.song_name)
     data.artist_size = surface.get_text_size(fonts.artist, vars.artist_string)
     window_x = window.x:get()
@@ -593,7 +600,7 @@ function draw_hud()
         hud.back_alpha:update(globals.frametime(), 0, nil)
         hud.next_alpha:update(globals.frametime(), 0, nil)
         if client.key_state(0x01) and not clicked_once then
-            spotify.playpause()
+            spotify.play_pause()
             clicked_once = true
         end
         --handle back button
@@ -792,6 +799,19 @@ function draw_hud()
             hud.extended.Left.context.itemcount = 0
             hud.extended.Left.context.titlelinewidth:update(globals.frametime(), 0.36, nil)
             surface.draw_text(xtl_x + 12, xtl_y + 60, 210, 210, 210, 255, fonts.hud.navtitle, "Settings")
+            surface.draw_text(xtl_x + 12, xtl_y + 100, 210, 210, 210, 255, fonts.hud.settingparent, ">")
+            surface.draw_text(xtl_x + 24, xtl_y + 100, 210, 210, 210, 255, fonts.hud.settingparent, "Box settings")
+            surface.draw_text(xtl_x + 26, xtl_y + 130, 210, 210, 210, 255, fonts.hud.settingchild, "Cover art")
+            renderer.rectangle(xtl_x + 12, xtl_y + 137, 10, 10, 150, 150, 150, 255)
+            if intersect(xtl_x + 12, xtl_y + 137, 10, 10) then
+                if client.key_state(0x01) and not clicked_once then
+                    hud.extended.Left.settings.cover_art = not hud.extended.Left.settings.cover_art
+                    clicked_once = true
+                end
+            end
+            if hud.extended.Left.settings.cover_art then
+                renderer.rectangle(xtl_x + 12, xtl_y + 137, 10, 10, 0,255,0, 255)
+            end
         end
         if hud.extended.Left.context.maxitemcount < hud.extended.Left.context.itemcount and hud.extended.Left.context.itemcount ~= nil then
             local sbh = (100/(hud.extended.Left.context.itemcount/hud.extended.Left.context.maxitemcount))
@@ -1003,7 +1023,7 @@ function handle_menu()
     ui.set(menu.authorization.status, "\a1ED760FF> \affffffff ".. spotify.authstatus())
 end
 
-function debug()
+--[[function debug()
     renderer.text(100,100,255,255,255,255,"+",0,spotify.authstatus())
     renderer.text(100,130,255,255,255,255,"+",0,data.current_user.name)
     renderer.text(100,160,255,255,255,255,"+",0,data.song_name)
@@ -1018,7 +1038,7 @@ function debug()
         renderer.text(100, 280,255,255,255,255,"+",0,"0")
     end
 
-end
+end]]
 
 client.set_event_callback("paint_ui", function()
     handle_menu()
@@ -1026,7 +1046,7 @@ client.set_event_callback("paint_ui", function()
     if spotify.authstatus() == "COMPLETED" and ui.get(menu.enable) then 
         update_data()
         if vars.total_updates ~= 0 then
-            debug()
+            --debug()
             draw_spotify_window()
             --_, __ = pcall(draw_spotify_window)
 
