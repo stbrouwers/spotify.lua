@@ -354,6 +354,12 @@ local fonts = {
         playlist_title_small = surface.create_font("Corbel", 24, 700, 0x010),
         playlist_title_scroll = surface.create_font("Corbel", 32, 700, 0x010),
         playlist_top_index_bar = surface.create_font("Corbel", 24, 300, 0x010),
+    },
+    ui = {
+        song = {
+            horizontal_index = surface.create_font("Segoe UI", 24, 300, 0x010),
+            horizontal_name = surface.create_font("Corbel", 30, 500, 0x010),
+        },
     }
 }
 
@@ -405,15 +411,15 @@ local function pimage_previews_load(id)
         if data.playlists[id].tracks[i].images.small ~= nil then
             http.get(data.playlists[id].tracks[i].images.small, function(success, response)
                 if response.status == 200 then
-                    hud.extended.Right.playlist.preview_data[i] = {images.load_jpg(response.body)}
+                    hud.extended.Right.playlist.preview_data[i] = images.load_jpg(response.body)
                     client.log("loaded img "..data.playlists[id].tracks[i].name)
                 else
-                    hud.extended.Right.playlist.preview_data[i] = {"NO_IMAGE"}
+                    hud.extended.Right.playlist.preview_data[i] = "NO_IMAGE"
                     client.log("request error img "..data.playlists[id].tracks[i].name)
                 end
             end)
         else
-            hud.extended.Right.playlist.preview_data[i] = {"NO_IMAGE"}
+            hud.extended.Right.playlist.preview_data[i] = "NO_IMAGE"
             client.log("nil error img "..data.playlists[id].tracks[i].name)
         end
         hud.extended.Right.playlist.preview_data_total = hud.extended.Right.playlist.preview_data_total+1
@@ -759,7 +765,7 @@ function draw_hud()
                                     spotify.get_playlist_data(data.playlists[scroll_value+item_index].uri)
                                     pimage_previews_load(scroll_value+item_index)
                                     hud.extended.Right.context.scrollvalue = 0
-                    
+                                    
                                 end
                             else
                                 surface.draw_text(xtl_x + 12, xtl_y + 70 + (30 * item_index), 230, 230, 230, 255, fonts.hud.playlist, pname)
@@ -834,7 +840,7 @@ function draw_hud()
                 local top_opacity_out
                 r_index = hud.extended.Right.playlist.active_data_index
                 hud.extended.Right.context.itemcount = data.playlists[r_index].tracks_local_total
-                hud.extended.Right.context.maxitemcount = round(((xtr_h-top_bar_height)/50))
+                hud.extended.Right.context.maxitemcount = round(((xtr_h-top_bar_height)/55))
 
                 if r_scroll_value == 0 then
                     top_height = round(hud.extended.Right.context.top_height:update(globals.frametime(), 156, nil):get())
@@ -886,11 +892,8 @@ function draw_hud()
                     for i = hud.extended.Right.context.maxitemcount, 1,-1 do
                         local imgdata 
                         if r_scroll_value+r_item_index <= hud.extended.Right.context.itemcount then
-                            surface.draw_text(xtr_x+5, xtr_y+top_bar_height+33+(30*(r_item_index-1)), 255, 255, 255, 255, fonts.hud.playlist_privacy, tostring(r_scroll_value+r_item_index))
-                            if hud.extended.Right.playlist.preview_data[2] ~= "NO_IMAGE" and hud.extended.Right.playlist.preview_data[1] ~= nil then
-                                --hud.extended.Right.playlist.preview_data[2]:draw(xtr_x+10,xtr_y+top_bar_height+33+(30*(r_item_index-1)),30,30, nil, nil, nil, nil, false)
-                            end
-                            surface.draw_text(xtr_x+89, xtr_y+top_bar_height+33+(30*(r_item_index-1)), 255, 255, 255, 255, fonts.hud.playlist_privacy, data.playlists[r_index].tracks[r_scroll_value+r_item_index].name)
+                            if xtr_y+xtr_h <= xtr_y+top_bar_height+48+(60*(r_item_index)) then break end
+                            ui_song_horizontal(xtr_x+5, xtr_y+top_bar_height+48+(60*(r_item_index-1)), data.playlists[r_index], r_scroll_value+r_item_index, hud.extended.Right.playlist.preview_data[r_scroll_value+r_item_index])
                             r_item_index = r_item_index + 1
                         end
                     end
@@ -1045,4 +1048,17 @@ end)
 if database.read("spotify_refresh_token") then
     auth(authentication.refresh_token)
     data = spotify.update()
+end
+
+
+----------------------------UI ELEMENTS----------------------------
+
+-- SONGS --
+
+function ui_song_horizontal(x, y, context, index, image_data) 
+    surface.draw_text(x, y, 255, 255, 255, 255, fonts.ui.song.horizontal_index, tostring(index))
+    if image ~= "NO_IMAGE" and image ~= nil then
+        image_data:draw(x+30, y, 50, 50, nil, nil, nil, nil, false)
+    end
+    surface.draw_text(x+80, y, 255, 255, 255, 255, fonts.ui.song.horizontal_name, context.tracks[index].name)
 end
