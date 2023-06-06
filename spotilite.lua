@@ -321,6 +321,13 @@ function round(n)
 	return n % 1 >= 0.5 and math.ceil(n) or math.floor(n)
 end
 
+function contains(list, x)
+	for _, v in pairs(list) do
+		if v == x then return true end
+	end
+	return false
+end
+
 local js = panorama.open()
 local persona = js.MyPersonaAPI
 local xuid = persona.GetXuid()
@@ -375,6 +382,7 @@ local vars = {
     switch = false,
     artist_string = "",
     total_updates = 0,
+    await_playlist = false,
 }
 
 local window = {
@@ -764,6 +772,8 @@ function draw_hud()
                                         end
                                     end)
                                     spotify.get_playlist_data(data.playlists[scroll_value+item_index].uri)
+                                    vars.await_playlist = true
+
                                     pimage_previews_load(scroll_value+item_index)
                                     hud.extended.Right.context.scrollvalue = 0
                                     
@@ -894,11 +904,16 @@ function draw_hud()
                         local imgdata 
                         if r_scroll_value+r_item_index <= hud.extended.Right.context.itemcount then
                             if xtr_y+xtr_h <= xtr_y+top_bar_height+48+(60*(r_item_index)) then break end
-                            ui_song_horizontal(xtr_x+5, xtr_y+top_bar_height+48+(60*(r_item_index-1)), data.playlists[r_index], r_scroll_value+r_item_index, hud.extended.Right.playlist.preview_data[r_scroll_value+r_item_index])
+                            ui_song_horizontal(xtr_x+5, xtr_y+top_bar_height+48+(60*(r_item_index-1)), data.playlists[r_index], r_scroll_value+r_item_index, hud.extended.Right.playlist.preview_data[r_scroll_value+r_item_index], "none")
                             r_item_index = r_item_index + 1
                         end
                     end
                 else
+                    if vars.await_playlist and #data.playlists[hud.extended.Right.playlist.active_data_index].tracks == data.playlists[hud.extended.Right.playlist.active_data_index].tracks_user_total then
+                        vars.await_playlist = false
+                        pimage_previews_load(hud.extended.Right.playlist.active_data_index)
+                        client.log(hud.extended.Right.playlist.active_data_index..'cum')
+                    end
                     buffer(xtr_x+(xtr_w/2), xtr_y+((xtr_h+156)/2), 30, 1)
                 end
                 r_item_index = 1
@@ -1035,6 +1050,7 @@ client.set_event_callback("paint_ui", function()
                 draw_hud()
                 --_, __ = pcall(draw_hud)
                 seek()
+                ui_handler()
             end
         end
     end
@@ -1053,19 +1069,180 @@ end
 
 
 ----------------------------UI ELEMENTS----------------------------
+-- VARIABLES --
 
--- SONGS --
+local uivars = {
+    tc = globals.tickcount(),
+    input_behaviour = {
+        states = {'IDLE', 'DOWN', 'DRAG', 'CLICK', 'DOUBLE'},
+        mouse = {
+            intersects = {false, element = { element_group, element_type, index, context}, position = {x, y}, tick},
+        }
+        keys = {
+            mouse1 = {
+                ref = 0x01,
+                down = {false, on = {element_group, element_type, index, context}, start, tick},
+                clicked = {false, on = {element_group, element_type, index, context}, tick},
+                state = 'IDLE',
+            },
+            mouse2 = {
+                ref = 0x02,
+                down = {false, on = {element_group, element_type, index, context}, tick},
+                clicked = {false, on = {element_group, element_type, index, context}, tick},
+                state = 'IDLE',
+            },
+        },
+    },
+    selections = {
+        selected_group,
+        selected_type,
+        songs = {
+            horizontal = {},
+        }
+    }
+}
 
-function ui_song_horizontal(x, y, context, index, image_data)
+-- LOGIC --
+
+local function ui_handler() 
+    uivars.tc = globals.tickcount()
+    
+    if intersect(xtr_x, xtr_y, xtr_w, xtr_h) or intersect(xtl_x, xtl_y, xtl_w, xtl_h) then
+        ui_input_handler()
+    end
+end
+
+local function ui_input_handler(intersecting, element)
+    local current_cycle = {}
+    if intersect(intersecting[1], intersecting[2], intersecting[3], intersecting[4]) then
+        local position = {mouseposx, mouseposy}
+        uivars.input_behaviour.mouse.intersects = {true, element, position, uivars.tc}
+    end
+    table.insert(current_cycle, uivars.input_behaviour.mouse.intersects)
+
+    for i,v in pairs(uivars.input_behaviour.keys) do
+        if not client.key_state(v.ref) and v.down[1] then
+            v.down[1] = false
+            v.clicked[1] = true
+            v.state = uivars.input_behaviour.states[4]
+        end
+    end
+
+    return {uivars.input_behaviour.mouse.intersects, uivars.input_behaviour.keys} --return format
+end
+
+local function ui_get_input()
+
+end
+
+local function ui_input_reset() 
+    for i,v in pairs(uivars.input_behaviour.keys) do
+        v.state = uivars.input_behaviour.states[1]
+    end
+end
+
+local function ui_selection_contains(index)
+    if contains(uivars.selections[selected_group][selected_type], index) then
+        return true
+    else
+        return false
+    end
+end
+
+local function ui_selection_add(element_group, element_type, index, context)
+    if uivars.selections.selected_group ~= element_group or uivars.selections.selected_type ~= element_type then ui_selection_clear() end
+    uivars.selections.selected_group = element_group
+    uivars.selections.selected_type = element_type
+
+    table.insert(uivars.selections.[element_group][element_type][index], context)
+end
+
+local function ui_selection_remove(element_group, element_type, index)
+    uivars.selections.selected_type = element_type
+    table.remove(uivars.selections.[element_group][element_type], index)
+
+    if #uivars.selections.[element_group][element_type] == 0 then
+        ui_selection_clear()
+    end
+end
+
+local function ui_selection_clear()
+    if uivars.selections.selected_type == nil and uivars.selections.selected_group == nil then
+        client.log('no selection to clear')
+        return
+    end
+    uivars.selections[selected_group][selected_type] = {}
+    uivars.selections.selected_group = nil
+    uivars.selections.selected_type = nil
+end
+
+local function ui_primary_click(element_group, element_type, index, context)
+    mouse1 = uivars.input_behaviour.mouse1 
+    if client.key_state(0x01) and not mouse1.down then --leftmousedown
+        mouse1.down = true
+        return 
+    end
+end
+
+-- ELEMENTS --
+--- SONGS ---
+
+function ui_song_horizontal(x, y, context, index, image_data, state)
+    local clr = 145
+    local mouse, keys = ui_input_handler({x-5, y, 500, 55}, {"songs", "horizontal", index, context})
+
+    switch(input) {
+        IDLE = function()
+
+        end,
+
+        DOWN = function()
+
+        end,
+
+        DRAG = function()
+
+        end,
+
+        CLICK = function()
+
+        end,
+
+        DOUBLE = function()
+
+        end,
+    }
+
+
+    if intersect(x-5, y, 500, 55) then --onhover
+        surface.draw_filled_rect(x-5,y-5,500,60,90,90,90,30)
+        clr = 255
+    end
+
+    if index == selected_index then
+        surface.draw_filled_rect(x-5,y-5,500,60,90,90,90,120)
+    end
+
     str_index = tostring(index)
-    surface.draw_text(x+15-(5*(string.len(str_index)-1)), y+10, 150, 150, 150, 255, fonts.ui.song.horizontal_index, str_index)
-    if image ~= "NO_IMAGE" and image ~= nil then
+    surface.draw_text(x+15-(5*(string.len(str_index)-1)), y+12, 150, 150, 150, 255, fonts.ui.song.horizontal_index, str_index)
+    if image_data ~= "NO_IMAGE" and image_data ~= nil then
         image_data:draw(x+46, y, 50, 50, nil, nil, nil, nil, false)
     end
-    surface.draw_text(x+110, y, 255, 255, 255, 255, fonts.ui.song.horizontal_name, context.tracks[index].name)
-    local artists = ""
+    surface.draw_text(x+109, y+2, 255, 255, 255, 255, fonts.ui.song.horizontal_name, context.tracks[index].name)
+
+    local prev_length = 0
+    local cstart = 0
     for i = 1, #context.tracks[index].artists do
-        artists = i == #context.tracks[index].artists and artists .. context.tracks[index].artists[i].name or artists .. context.tracks[index].artists[i].name ..  ", "
+        cstart = prev_length 
+        surface.draw_text(x+110+(prev_length), y+28, clr, clr, clr, 255, fonts.ui.song.horizontal_artist, context.tracks[index].artists[i].name)
+        prev_length = prev_length + surface.get_text_size(fonts.ui.song.horizontal_artist, context.tracks[index].artists[i].name)
+
+        if intersect(x+110+cstart, y+27, prev_length-cstart, 25) then 
+            renderer.line(x+110+cstart, y+45, x+110+prev_length, y+45,255,255,255,255)
+        end
+
+        if i == #context.tracks[index].artists then break end
+        surface.draw_text(x+110+(prev_length), y+28, 145, 145, 145, 255, fonts.ui.song.horizontal_artist, ", ")
+        prev_length = prev_length + surface.get_text_size(fonts.ui.song.horizontal_artist, ", ")
     end
-    surface.draw_text(x+110, y+25, 170, 170, 170, 255, fonts.ui.song.horizontal_artist, artists)
 end
