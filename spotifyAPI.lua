@@ -334,7 +334,7 @@ function api.get_playlist_data(id)
                     data.playlists[p_index].tracks[data.playlists[p_index].tracks_local_total+1] = {
                         uri = jsondata.tracks.items[i].track.id,
                         name = jsondata.tracks.items[i].track.name,
-                        artists = {jsondata.tracks.items[i].artists},
+                        artists = jsondata.tracks.items[i].track.artists,
                         images = {large=jsondata.tracks.items[i].track.album.images[1].url, medium=jsondata.tracks.items[i].track.album.images[2].url, small=jsondata.tracks.items[i].track.album.images[3].url},
                         is_local = jsondata.tracks.items[i].track.is_local,
                         markets = jsondata.tracks.items[i].track.available_markets,
@@ -362,7 +362,7 @@ function api.get_playlist_data(id)
                         album = {
                             uri = jsondata.items[i].track.album.id,
                             name = jsondata.items[i].track.album.name,
-                            artists = {jsondata.items[i].artists},
+                            artists = jsondata.items[i].artists,
                             images = {large=jsondata.items[i].track.album.images[1].url, medium=jsondata.items[i].track.album.images[2].url, small=jsondata.items[i].track.album.images[3].url},
                             is_local = jsondata.items[i].is_local,
                             markets = jsondata.items[i].track.available_markets,
