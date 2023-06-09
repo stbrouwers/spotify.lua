@@ -368,6 +368,7 @@ local fonts = {
             horizontal_name = surface.create_font("Verdana", 22, 300, 0x010),
             horizontal_artist = surface.create_font("Verdana", 18, 300, 0x010),
         },
+        debug = surface.create_font("Verdana", 12, 300, 0x010),
     }
 }
 
@@ -1036,52 +1037,46 @@ function debug()
 
 end
 
-client.set_event_callback("paint_ui", function()
-    handle_menu()
-    data = spotify.get_data()
-    if spotify.authstatus() == "COMPLETED" and ui.get(menu.enable) then 
-        update_data()
-        if vars.total_updates ~= 0 then
-            debug()
-            draw_spotify_window()
-            --_, __ = pcall(draw_spotify_window)
-
-            if ui.get(menu.options.hud) and ui.is_menu_open() then
-                draw_hud()
-                --_, __ = pcall(draw_hud)
-                seek()
-                ui_handler()
-            end
-        end
-    end
-    -- IF (I_CAN_HEAR_THE_VOICES) THEN RUN();RUN();RUN();RUN() END
-end)
-
-client.set_event_callback("shutdown", function()
-    database.write("spotify_x", window.x:get())
-    database.write("spotify_y", window.y:get())
-end)
-
-if database.read("spotify_refresh_token") then
-    auth(authentication.refresh_token)
-    data = spotify.update()
-end
 
 
 ----------------------------UI ELEMENTS----------------------------
 -- VARIABLES --
 
+local active_elements = {}
+
 local uivars = {
     tc = globals.tickcount(),
+    mouse_x, mouse_y = ui.mouse_position(),
     input_behaviour = {
-        states = {'IDLE', 'DOWN', 'DRAG', 'CLICK', 'DOUBLE'},
+        states = {'IDLE', 'DOWN', 'DRAG', 'DROP', 'CLICK', 'DOUBLE'},
         mouse = {
-            intersects = {false, element = { element_group, element_type, index, context}, position = {x, y}, tick},
-        }
+            states = {'IDLE', 'HOVER', 'MOUSEON', 'MOUSEOFF'},
+            intersects = {
+                false, 
+                element = {
+                    element_group,
+                    element_type,
+                    index,
+                    context
+                },
+                previous = {
+                    false,
+                    element_group,
+                    element_type,
+                    index,
+                    context
+                },
+                position = {
+                    x,
+                    y
+                }, 
+                tick
+            },
+        },
         keys = {
             mouse1 = {
                 ref = 0x01,
-                down = {false, on = {element_group, element_type, index, context}, start, tick},
+                down = {false, on = {element_group, element_type, index, context}, tick},
                 clicked = {false, on = {element_group, element_type, index, context}, tick},
                 state = 'IDLE',
             },
@@ -1104,35 +1099,75 @@ local uivars = {
 
 -- LOGIC --
 
-local function ui_handler() 
-    uivars.tc = globals.tickcount()
-    
-    if intersect(xtr_x, xtr_y, xtr_w, xtr_h) or intersect(xtl_x, xtl_y, xtl_w, xtl_h) then
-        ui_input_handler()
-    end
-end
 
-local function ui_input_handler(intersecting, element)
-    local current_cycle = {}
-    if intersect(intersecting[1], intersecting[2], intersecting[3], intersecting[4]) then
-        local position = {mouseposx, mouseposy}
-        uivars.input_behaviour.mouse.intersects = {true, element, position, uivars.tc}
-    end
-    table.insert(current_cycle, uivars.input_behaviour.mouse.intersects)
+local function ui_debug()
+    local x, y = 30, 700
+    local iter = 0
+    local element = uivars.input_behaviour.mouse.intersects.element
+    local previous = uivars.input_behaviour.mouse.intersects.previous
 
-    for i,v in pairs(uivars.input_behaviour.keys) do
-        if not client.key_state(v.ref) and v.down[1] then
-            v.down[1] = false
-            v.clicked[1] = true
-            v.state = uivars.input_behaviour.states[4]
+    surface.draw_text(x, y-10, 255, 255, 255, 255, fonts.ui.debug, "active ui elements:")
+    for k,v in pairs(active_elements) do
+
+        surface.draw_text(x, y+(10*iter), 255, 255, 255, 255, fonts.ui.debug, k)
+        if uivars.input_behaviour.mouse.intersects[1] then
+            if element[1] == v[1][1] and element[2] == v[1][2] and element[3] == v[1][3] then 
+                surface.draw_text(x, y+(10*iter), 20, 255, 20, 255, fonts.ui.debug, k.. " (hovered)")
+            end
+        elseif previous[1] and previous[2] == v[1][1] and previous[3] == v[1][2] and previous[4] == v[1][3] then
+            surface.draw_text(x, y+(10*iter), 0, 190, 0, 255, fonts.ui.debug, k .. " (previous)")
         end
-    end
 
-    return {uivars.input_behaviour.mouse.intersects, uivars.input_behaviour.keys} --return format
+        iter = iter + 1
+    end
 end
 
-local function ui_get_input()
+--- INPUT ---
 
+local function ui_input_handler(element, intersecting)
+
+    if element == "THE" and  intersecting == "VOICES" then -- global cycle
+        local hovered = false
+        for i,v in pairs(active_elements) do --mouse intersect
+            if intersect(v[2][1], v[2][2], v[2][3], v[2][4]) then
+                hovered = true
+                if not uivars.input_behaviour.mouse.intersects.previous[1] then
+                    uivars.input_behaviour.mouse.intersects.previous = {true, v[1][1], v[1][2], v[1][3], v[1][4]}
+                end
+
+                uivars.input_behaviour.mouse.intersects[1] = true
+                uivars.input_behaviour.mouse.intersects.element = {v[1][1], v[1][2], v[1][3], v[1][4]}
+                uivars.input_behaviour.mouse.intersects.position = {uivars.mouse_x-v[2][1], uivars.mouse_y-v[2][2]}
+                uivars.input_behaviour.mouse.intersects.tick = uivars.tc
+
+                break
+            end
+        end
+
+        if not hovered then
+            uivars.input_behaviour.mouse.intersects[1] = false
+            uivars.input_behaviour.mouse.intersects.previous[1] = false
+        end
+
+        for i,v in pairs(uivars.input_behaviour.keys) do
+            if not client.key_state(v.ref) and v.down[1] then
+                v.down[1] = false
+                v.clicked[1] = true
+                v.state = uivars.input_behaviour.states[5]
+            end
+        end
+
+        active_elements = {}
+        return 
+    end
+    client.log(element)
+    local element_reference = element[1].."_"..element[2].."_"..element[3]
+
+    if not contains(active_elements, element_reference) then  -- if element is not added to active elements, add it.
+        active_elements[element_reference] = {element, intersecting}
+    end
+
+    return {uivars.input_behaviour.mouse.intersects, uivars.input_behaviour.keys} 
 end
 
 local function ui_input_reset() 
@@ -1154,14 +1189,14 @@ local function ui_selection_add(element_group, element_type, index, context)
     uivars.selections.selected_group = element_group
     uivars.selections.selected_type = element_type
 
-    table.insert(uivars.selections.[element_group][element_type][index], context)
+    table.insert(uivars.selections[element_group][element_type], index, context)
 end
 
 local function ui_selection_remove(element_group, element_type, index)
     uivars.selections.selected_type = element_type
-    table.remove(uivars.selections.[element_group][element_type], index)
+    table.remove(uivars.selections[element_group][element_type], index)
 
-    if #uivars.selections.[element_group][element_type] == 0 then
+    if #uivars.selections[element_group][element_type] == 0 then
         ui_selection_clear()
     end
 end
@@ -1176,22 +1211,25 @@ local function ui_selection_clear()
     uivars.selections.selected_type = nil
 end
 
-local function ui_primary_click(element_group, element_type, index, context)
-    mouse1 = uivars.input_behaviour.mouse1 
-    if client.key_state(0x01) and not mouse1.down then --leftmousedown
-        mouse1.down = true
-        return 
-    end
-end
+--local function ui_primary_click(element_group, element_type, index, context)
+--  local mouse1 = uivars.input_behaviour.mouse1
+--    if client.key_state(0x01) and not mouse1.down then --leftmousedown
+--        mouse1.down = true
+--        return 
+--    end
+--end
 
 -- ELEMENTS --
 --- SONGS ---
 
 function ui_song_horizontal(x, y, context, index, image_data, state)
-    local clr = 145
-    local mouse, keys = ui_input_handler({x-5, y, 500, 55}, {"songs", "horizontal", index, context})
+    local intersect_region = {x-5, y, 500, 55} --x, y, w, h
+    local element_data = {"songs", "horizontal", index, context.tracks[index]} --purpose of displaying element, type of element, index of element, context of the data that is being displayed
 
-    switch(input) {
+    local clr = 145
+    local mouse, keys = ui_input_handler(element_data, intersect_region)
+
+    switch(keys) {   --mouse1 events (left mouse button) keys.mouse1.state
         IDLE = function()
 
         end,
@@ -1211,6 +1249,10 @@ function ui_song_horizontal(x, y, context, index, image_data, state)
         DOUBLE = function()
 
         end,
+
+        default = function()
+
+        end
     }
 
 
@@ -1245,4 +1287,47 @@ function ui_song_horizontal(x, y, context, index, image_data, state)
         surface.draw_text(x+110+(prev_length), y+28, 145, 145, 145, 255, fonts.ui.song.horizontal_artist, ", ")
         prev_length = prev_length + surface.get_text_size(fonts.ui.song.horizontal_artist, ", ")
     end
+end
+
+
+local function ui_handler() 
+    uivars.tc = globals.tickcount()
+    uivars.mouse_x, uivars.mouse_y = ui.mouse_position()
+
+    ui_debug()
+    ui_input_handler("THE", "VOICES")
+end
+
+---------------------------- END UI ELEMENTS ----------------------------
+
+
+client.set_event_callback("paint_ui", function()
+    handle_menu()
+    data = spotify.get_data()
+    if spotify.authstatus() == "COMPLETED" and ui.get(menu.enable) then 
+        update_data()
+        if vars.total_updates ~= 0 then
+            debug()
+            draw_spotify_window()
+            --_, __ = pcall(draw_spotify_window)
+
+            if ui.get(menu.options.hud) and ui.is_menu_open() then
+                draw_hud()
+                --_, __ = pcall(draw_hud)
+                seek()
+                ui_handler()
+            end
+        end
+    end
+    -- IF (I_CAN_HEAR_THE_VOICES) THEN RUN();RUN();RUN();RUN() END
+end)
+
+client.set_event_callback("shutdown", function()
+    database.write("spotify_x", window.x:get())
+    database.write("spotify_y", window.y:get())
+end)
+
+if database.read("spotify_refresh_token") then
+    auth(authentication.refresh_token)
+    data = spotify.update()
 end
