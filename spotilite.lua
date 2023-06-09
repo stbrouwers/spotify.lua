@@ -1070,7 +1070,10 @@ local uivars = {
                     x,
                     y
                 }, 
-                tick
+                tick = {
+                    false,
+                    count,
+                }
             },
         },
         keys = {
@@ -1123,6 +1126,28 @@ local function ui_debug()
 end
 
 --- INPUT ---
+local function ui_get_mousestate(element)
+    mouse = uivars.input_behaviour.mouse
+    if mouse.intersects[1] and mouse.intersects.element[4] == element[4] then
+        if mouse.intersects.tick[2] == uivars.tc and not mouse.intersects.tick[1] then
+            mouse.intersects.tick[1] = true
+            return mouse.states[3] -- mouse on
+        end
+        return mouse.states[2] -- mouse hover
+    end
+    
+
+    if mouse.intersects.previous[1] and mouse.intersects.previous[5] == element[4] then
+        uivars.input_behaviour.mouse.intersects.previous = {false, nil, nil, nil, nil}
+        return mouse.states[4] -- mouse off
+    end
+    return mouse.states[1] -- idle
+end
+
+local function ui_get_keystate(element)
+
+end
+
 
 local function ui_input_handler(element, intersecting)
 
@@ -1133,12 +1158,12 @@ local function ui_input_handler(element, intersecting)
                 hovered = true
                 if not uivars.input_behaviour.mouse.intersects.previous[1] then
                     uivars.input_behaviour.mouse.intersects.previous = {true, v[1][1], v[1][2], v[1][3], v[1][4]}
+                    uivars.input_behaviour.mouse.intersects.tick = {false, uivars.tc}
                 end
 
                 uivars.input_behaviour.mouse.intersects[1] = true
                 uivars.input_behaviour.mouse.intersects.element = {v[1][1], v[1][2], v[1][3], v[1][4]}
                 uivars.input_behaviour.mouse.intersects.position = {uivars.mouse_x-v[2][1], uivars.mouse_y-v[2][2]}
-                uivars.input_behaviour.mouse.intersects.tick = uivars.tc
 
                 break
             end
@@ -1146,7 +1171,6 @@ local function ui_input_handler(element, intersecting)
 
         if not hovered then
             uivars.input_behaviour.mouse.intersects[1] = false
-            uivars.input_behaviour.mouse.intersects.previous[1] = false
         end
 
         for i,v in pairs(uivars.input_behaviour.keys) do
@@ -1167,8 +1191,10 @@ local function ui_input_handler(element, intersecting)
         active_elements[element_reference] = {element, intersecting}
     end
 
-    return {uivars.input_behaviour.mouse.intersects, uivars.input_behaviour.keys} 
+    return {ui_get_mousestate(element), uivars.input_behaviour.keys} 
 end
+
+
 
 local function ui_input_reset() 
     for i,v in pairs(uivars.input_behaviour.keys) do
@@ -1227,7 +1253,8 @@ function ui_song_horizontal(x, y, context, index, image_data, state)
     local element_data = {"songs", "horizontal", index, context.tracks[index]} --purpose of displaying element, type of element, index of element, context of the data that is being displayed
 
     local clr = 145
-    local mouse, keys = ui_input_handler(element_data, intersect_region)
+    local input = ui_input_handler(element_data, intersect_region)
+    local mouse, keys = input[1], input[2]
 
     switch(keys) {   --mouse1 events (left mouse button) keys.mouse1.state
         IDLE = function()
@@ -1255,11 +1282,26 @@ function ui_song_horizontal(x, y, context, index, image_data, state)
         end
     }
 
+    switch(mouse) {             --mouse hover events. if mouse == <state> also works
+        HOVER = function()
+            surface.draw_filled_rect(x-5,y-5,500,60,90,90,90,30)
+            clr = 255
+        end,
 
-    if intersect(x-5, y, 500, 55) then --onhover
-        surface.draw_filled_rect(x-5,y-5,500,60,90,90,90,30)
-        clr = 255
-    end
+        IDLE = function()
+
+        end,
+
+        MOUSEON = function()
+            surface.draw_filled_rect(x-5,y-5,500,60,90,90,90,30)
+
+            clr = 255
+        end,
+
+        MOUSEOFF = function()
+
+        end,
+    }
 
     if index == selected_index then
         surface.draw_filled_rect(x-5,y-5,500,60,90,90,90,120)
