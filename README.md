@@ -7,3 +7,6 @@ LUA PROCESSING POWER 3X WHEN SPOTIFUS LUAS LOADED!
 
 https://spotify.stbrouwers.cc
 ### intersect() deez nuts ni
+
+gamesense lua api: 
+https://docs.gamesense.gs/
