@@ -1123,6 +1123,34 @@ local function ui_debug()
 
         iter = iter + 1
     end
+
+    iter = iter + 1
+
+    for k,v in pairs(uivars.input_behaviour.keys) do
+        local dr, dg = 255, 0
+        local cr, cg = 255, 0
+
+        if v.down[1] then
+            dr, dg = 0, 255
+        end
+
+        if v.clicked[1] then
+            cr, cg = 0, 255
+        end
+
+        surface.draw_text(x, y+(10*iter), 255, 255, 255, 255, fonts.ui.debug, k .. " (" .. v.ref .. "): " .. tostring(v.state))
+        surface.draw_text(x, y+(10*(iter+1)), dr, dg, 0, 255, fonts.ui.debug, "DOWN")
+        local down_size = surface.get_text_size(fonts.ui.debug, "DOWN")
+        surface.draw_text(x+down_size, y+(10*(iter+1)), 255, 255, 255, 255, fonts.ui.debug, ", DOWN_CONTEXT_PLACEHOLDER")
+
+
+        surface.draw_text(x, y+(10*(iter+2)), cr, cg, 0, 255, fonts.ui.debug, "CLICKED")
+        local clicked_size = surface.get_text_size(fonts.ui.debug, "CLICKED")
+        surface.draw_text(x+clicked_size, y+(10*(iter+2)), 255, 255, 255, 255, fonts.ui.debug, ", CLICKED_CONTEXT_PLACEHOLDER")
+
+
+        iter = iter + 4
+    end
 end
 
 --- INPUT ---
@@ -1147,7 +1175,6 @@ end
 local function ui_get_keystate(element)
 
 end
-
 
 local function ui_input_handler(element, intersecting)
 
@@ -1174,7 +1201,14 @@ local function ui_input_handler(element, intersecting)
         end
 
         for i,v in pairs(uivars.input_behaviour.keys) do
-            if not client.key_state(v.ref) and v.down[1] then
+            local keystate  = client.key_state(v.ref)
+            if keystate then
+                v.down[1] = true
+                
+            end
+
+
+            if not keystate and v.down[1] then
                 v.down[1] = false
                 v.clicked[1] = true
                 v.state = uivars.input_behaviour.states[5]
@@ -1256,7 +1290,7 @@ function ui_song_horizontal(x, y, context, index, image_data, state)
     local input = ui_input_handler(element_data, intersect_region)
     local mouse, keys = input[1], input[2]
 
-    switch(keys) {   --mouse1 events (left mouse button) keys.mouse1.state
+    switch(keys.mouse1) {   --mouse1 events (left mouse button) keys.mouse1.state
         IDLE = function()
 
         end,
